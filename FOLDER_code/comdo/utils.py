@@ -233,7 +233,7 @@ def step_parallel(x, z, fs_private, beta= 0.2, alpha= 3, a= 1):
 
 
 
-def plot_streamlined(alphas, betas, n_iterations= 100, step_version= "step_v2"):
+def plot_streamlined(alphas, betas, n_iterations= 100, step_version= "step_sequential"):
 
     """
     Parameters:
