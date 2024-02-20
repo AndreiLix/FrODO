@@ -430,24 +430,7 @@ def optimize( stopping_condition = 0.002, max_iterations = 1000, memory_profiles
 
   for initial_condition in initial_conditions:
       
-    # assigning the same initial condition to all agents
-    x1, x2, x3, x4 = 4 * [np.array(
-                              [ [initial_condition[0]] ,
-                                    [initial_condition[1]] ]
-                              )]
 
-    # initializing integral terms. 
-    # NOTE: each term must be 0
-    z1, z2, z3, z4 = 4 * [np.zeros_like(x1)]
-
-    x = [x1, x2, x3, x4]
-    z = [z1, z2, z3, z4]
-
-
-
-    fs_private = [f1_ill, f2_ill, f3_ill, f4_ill]
-    x_inLast2Iterations = [copy.deepcopy(x), copy.deepcopy(x)]
-    x_history = []
 
 
 
@@ -463,6 +446,23 @@ def optimize( stopping_condition = 0.002, max_iterations = 1000, memory_profiles
                 for beta_g in betas_g:
                   for beta_gm in betas_gm:
 
+                    # assigning the same initial condition to all agents
+
+                    fs_private = [f1_ill, f2_ill, f3_ill, f4_ill]
+                    # x_history = []
+                    x1, x2, x3, x4 = 4 * [np.array(
+                                              [ [initial_condition[0]] ,
+                                                    [initial_condition[1]] ]
+                                              )]
+                    x = [x1, x2, x3, x4]
+
+                    # initializing integral terms. 
+                    # NOTE: each term must be 0
+                    # z1, z2, z3, z4 = 4 * [np.zeros_like(x1)]
+
+                    # z = [z1, z2, z3, z4]
+
+                    x_inLast2Iterations = [copy.deepcopy(x), copy.deepcopy(x)]
                     n_agents = len(fs_private)
                     n_params = len(x[0])
                     consensus_memory = np.zeros([n_agents, n_params, len_memory])
