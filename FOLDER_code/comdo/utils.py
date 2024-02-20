@@ -525,7 +525,7 @@ def plot_streamlined(alphas, betas, n_iterations= 100, step_version= "step_seque
 
     """
 
-    fig, ax = plt.subplots(figsize=(6, 6), dpi=200)
+    fig, ax = plt.subplots(figsize=(6, 6), dpi=150)
 
     
 
