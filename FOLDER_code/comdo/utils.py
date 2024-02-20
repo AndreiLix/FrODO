@@ -222,105 +222,182 @@ def step_parallel(x, z, fs_private, beta= 0.2, alpha= 3, a= 1):
 
 
 
-def step_withMemory(x, consensus_memory, gradient_memory, fs_private, alpha= 3, beta= 0.2):
+def constant(x): 
+    con = 1
+    return con
+
+
+def linear(x): # slope redundant in linear, it can only hav e1 slope, dependent on len(memory)
+    lin = x
+    return lin
+
+def exponential(x, b= 2):
+    assert b > 1, "Error: b must be > 1."
+    exp = b ** x
+    return exp
+
+def fractional(x, _lambda= 2.5): # TODO: make sure it looks like you want it to look, see the plot -> might need to flip it
     """
-    Like step_sequential, but works with different memory profiles + more hyperparameter flexibility.
+    _lambda: float >= 0
+        The fractional order to use.
+    """
 
-    Changes the states (x), consensus_memory and gradient_memory of our agents based on a step in the optimization process.
+    from scipy.special import gamma
 
-    Parameters
-    ----------
-    x: np array, shape (n_agents, n_params, 1).
-      Agent states.
-    
-    consensus_memory: np array, shape (n_agents, n_params, len_consensusMemory)
-      Memory of consensus error for each parameter of length len_consensusMemory.
+    binomial_coefficient = (gamma(_lambda+1)) / (gamma(x+1) * gamma(_lambda-x+1))
+    # fract = (-1) ** x * binomial_coefficient    # original factional variation -> quite funky 
+    fract = binomial_coefficient
+
+    return fract
+
+
+
+
+def step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_profile= "exponential", b= 2, _lambda= 2.5, len_memory= 10, beta_c = 0.2, beta_cm= 0.04, beta_g= 0.6, beta_gm= 0.36):
+  """
+  Like step_sequential, but works with different memory profiles + more hyperparameter flexibility.
+
+  Changes the states (x), consensus_memory and gradient_memory of our agents based on a step in the optimization process.
+
+  Parameters
+  ----------
+  x: np array, shape (n_agents, n_params, 1).
+    Agent states.
+
+  consensus_memory: np array, shape (n_agents, n_params, len_memory)
+    Memory of consensus error for each parameter of length len_memory.
+      Memory encoded such that:
+        consensus_memory[agent_i][param_i][0] = consensus error len_memory iterations ago.
+        consensus_memory[agent_i][param_i][-1] = consensus error 1 iteration ago.
+
+  gradient_memory: np array, shape (n_agents, n_params, len_gradientMemory)
+      Memory of past private subgradient values for each parameter of length len_gradientMemory.
         Memory encoded such that:
-          consensus_memory[agent_i][param_i][0] = consensus error len_consensusMemory iterations ago.
+          consensus_memory[agent_i][param_i][0] = consensus error len_memory iterations ago.
           consensus_memory[agent_i][param_i][-1] = consensus error 1 iteration ago.
 
-    gradient_memory: np array, shape (n_agents, n_params, len_gradientMemory)
-        Memory of past private subgradient values for each parameter of length len_gradientMemory.
-          Memory encoded such that:
-            consensus_memory[agent_i][param_i][0] = consensus error len_consensusMemory iterations ago.
-            consensus_memory[agent_i][param_i][-1] = consensus error 1 iteration ago.
-
-    Returns
-    --------
-    x, consensus_memory, gradient_memory
-        The updated angents's states (x), updated consensus_memory and gradient_memory
-                                                                                                                                                                    
-    """
+  b, _lambda: 
+    Scalar to parametrize the exponential and fractional memory profiles
+          
+  Returns
+  --------
+  x, consensus_memory, gradient_memory
+      The updated angents's states (x), updated consensus_memory and gradient_memory
+                                                                                                                                                                  
+  """
 
 
-    n_agents = len(fs_private)
-    n_params = len(x[0])
+  n_agents = len(fs_private)
+  n_params = len(x[0])
 
-    #---------------------------- first stage --------------------------------------
+  #---------------------------- first stage --------------------------------------
 
-    # computing consensus_memoryFeedback and gradient_memoryFeedback for this iteration
+  # computing the terms used for the updates in this iteration
 
-    consesus_term = np.zeros([n_agents, n_params,1])
-
-    for agent_i in range(n_agents):
-      for param_i in range(n_params):
-        consesus_term[agent_i][param_i][0] = beta_consensus * sum( [ (x[agent_j][param_i][0] - x[agent_i][param_i][0]) for agent_j in range(n_agents) if agent_j!= agent_i ] )
+  consesus_term = np.zeros([n_agents, n_params,1])
+  gradient_term = np.zeros([n_agents, n_params,1])
 
 
-    consensus_memoryFeedback = np.zeros([n_agents, n_params, 1])
-    gradient_memoryFeedback = np.zeros([n_agents, n_params, 1])
+  for agent_i in range(n_agents):
+    for param_i in range(n_params):
+      consesus_term[agent_i][param_i][0] = beta_c * sum( [ (x[agent_j][param_i][0] - x[agent_i][param_i][0]) for agent_j in range(n_agents) if agent_j!= agent_i ] )
+  
+  for agent_i in range(n_agents):
+      gradient_term[agent_i] = get_gradientVector_Autograd(fs_private[agent_i], x[agent_i])
 
+  consensus_memoryFeedback = np.zeros([n_agents, n_params, 1])
+  gradient_memoryFeedback = np.zeros([n_agents, n_params, 1])
+
+  if memory_profile == "constant":
     # TODO: consider splitting this into 2 for consesnus and gradient memory weights
-    memory_weights = np.array([memory_profile(x) for x in range(1, len_memory + 1)])
+    memory_weights = np.array([constant(x) for x in range(1, len_memory + 1)])
+
+  if memory_profile == "linear":
+    # TODO: consider splitting this into 2 for consesnus and gradient memory weights
+    memory_weights = np.array([linear(x) for x in range(1, len_memory + 1)])
     # scaling values between 0 and 1
     memory_weights = memory_weights / max(memory_weights)
 
-    for agent_i in range(n_agents):
-      for param_i in range(n_params):           
-          
-          consensus_memoryFeedback[agent_i][param_i][0] = sum([ memory_weights[memory_i] * consensus_memory[agent_i][param_i][memory_i] for memory_i in range(len_memory)])
-          gradient_memoryFeedback[agent_i][param_i][0] = sum([ memory_weights[memory_i] * gradient_memory[agent_i][param_i][memory_i] for memory_i in range(len_memory)])
+  if memory_profile == "exponential":
+    # TODO: consider splitting this into 2 for consesnus and gradient memory weights
+    memory_weights = np.array([exponential(x, b) for x in range(1, len_memory + 1)])
+    # scaling values between 0 and 1
+    memory_weights = memory_weights / max(memory_weights)
 
+  if memory_profile == "fractional":
+    # TODO: consider splitting this into 2 for consesnus and gradient memory weights
+    memory_weights = np.array([fractional(x, _lambda) for x in range(1, len_memory + 1)])
+    # scaling values between 0 and 1
+    memory_weights = memory_weights / max(memory_weights)
+
+
+
+  z_c = np.zeros([n_agents, n_params, 1])
+  z_g = np.zeros([n_agents, n_params, 1])
+
+
+  for agent_i in range(n_agents):
+    for param_i in range(n_params):           
+        
+      z_c[agent_i][param_i][0] = sum([ memory_weights[memory_i] * consensus_memory[agent_i][param_i][memory_i] for memory_i in range(len_memory)])
+      z_g[agent_i][param_i][0] = sum([ memory_weights[memory_i] * gradient_memory[agent_i][param_i][memory_i] for memory_i in range(len_memory)])
+
+
+  for agent_i in range(n_agents):
+    for param_i in range(n_params):           
+        
+        # consensus_memoryFeedback[agent_i][param_i][0] = sum([ memory_weights[memory_i] * consensus_memory[agent_i][param_i][memory_i] for memory_i in range(len_memory)])
+        # gradient_memoryFeedback[agent_i][param_i][0] = sum([ memory_weights[memory_i] * gradient_memory[agent_i][param_i][memory_i] for memory_i in range(len_memory)])
+
+        consensus_memoryFeedback[agent_i][param_i][0] = sum( [ (z_c[agent_j][param_i][0] - z_c[agent_i][param_i][0]) for agent_j in range(n_agents) if agent_j!= agent_i ] )
+        gradient_memoryFeedback[agent_i][param_i][0] = z_g[agent_i][param_i][0]
+
+
+  
+
+
+  # ================================================================
+
+
+  #---------------------------- second stage --------------------------------------
+
+  # updating x, consensus_memory and gradient_memory
+
+
+
+  # NOTE: all terms in update must be shape (n_agents, n_params, 1)
+
+  for agent_i in range(n_agents):
+    for param_i in range(n_params):
+        x[agent_i][param_i][0] =  x[agent_i][param_i][0] \
+                                    + beta_c * consesus_term[agent_i][param_i][0] \
+                                    + beta_cm * consensus_memoryFeedback[agent_i][param_i][0] \
+                                    - beta_g * gradient_term[agent_i][param_i][0] \
+                                    - beta_gm * gradient_memoryFeedback[agent_i][param_i][0]
+        
+        consensus_memory[agent_i][param_i][:-1] = consensus_memory[agent_i][param_i][1:]
+        consensus_memory[agent_i][param_i][-1] = consesus_term[agent_i][param_i][0]
     
-    gradient_term = get_gradientVector_Autograd(fs_private[agent_i], x[agent_i])
+        gradient_memory[agent_i][param_i][:-1] = gradient_memory[agent_i][param_i][1:]
+        gradient_memory[agent_i][param_i][-1] = gradient_term[agent_i][param_i][0]
 
 
-    # ================================================================
-
-
-    #---------------------------- second stage --------------------------------------
-
-    # updating x, consensus_memory and gradient_memory
+  return x, consensus_memory, gradient_memory
 
 
 
 
 
-    # NOTE: all terms in update must be shape (n_agents, n_params, 1)
-
-    for agent_i in range(n_agents):
-      for param_i in range(n_params):
-          x[agent_i][param_i][0] =  x[agent_i][param_i][0] \
-                                      + beta_consensusTerm * consesus_term \
-                                      + beta_consensusMemory * consensus_memoryFeedback \
-                                      - beta_gradientDescent * gradient_term \
-                                      - beta_gradientMemory * gradient_memoryFeedback
-          
-          consensus_memory[agent_i][param_i][:-1] = consensus_memory[agent_i][param_i][1:]
-          consensus_memory[agent_i][param_i][-1] = consesus_term[agent_i][param_i][0]
-      
-          gradient_memory[agent_i][param_i][:-1] = gradient_memory[agent_i][param_i][1:]
-          gradient_memory[agent_i][param_i][-1] = gradient_term[agent_i][param_i][0]
 
 
 
-def optimize( stopping_condition = 0.002, max_iterations = 1000 ):
+def optimize( stopping_condition = 0.002, max_iterations = 1000, memory_profiles= ["exponential"], bs= [2], _lambdas= [2.5], lens_memory= [10], betas_c = [0.2], betas_cm= [0.04], betas_g= [0.6], betas_gm= [0.36] ):
   """
   Returns
   -------
   dict
 
-    dictionary of format {tupple(x_1_initial, x_2_initial) : {"n_iterationsUntilConvergence": n_iterationsUntilConvergence , "last_x": last_x, "x_history": x_history} }
+    dictionary of format {"hyperparameter name": hperparameter, ...}: {tupple(x_1_initial, x_2_initial) : {"n_iterationsUntilConvergence": n_iterationsUntilConvergence , "last_x": last_x, "x_history": x_history} } }
 
       tupple(x_1_initial, x_2_initial) in {(1., 0.), (0., 1.)}  
     
@@ -346,6 +423,7 @@ def optimize( stopping_condition = 0.002, max_iterations = 1000 ):
                   [0] ]
                 )
 
+  # performance_dict_initialCondition = {}
   performance_dict = {}
 
   initial_conditions = ( (1., 0.), (0., 1.) )
@@ -354,53 +432,79 @@ def optimize( stopping_condition = 0.002, max_iterations = 1000 ):
       
     # assigning the same initial condition to all agents
     x1, x2, x3, x4 = 4 * [np.array(
-                                  [ [initial_condition[0]] ,
-                                        [initial_condition[1]] ]
-                                  )]
+                              [ [initial_condition[0]] ,
+                                    [initial_condition[1]] ]
+                              )]
 
-  # initializing integral terms. 
-  # NOTE: each term must be 0
-  z1, z2, z3, z4 = 4 * [np.zeros_like(x1)]
+    # initializing integral terms. 
+    # NOTE: each term must be 0
+    z1, z2, z3, z4 = 4 * [np.zeros_like(x1)]
 
-  x = [x1, x2, x3, x4]
-  z = [z1, z2, z3, z4]
-
-
-  fs_private = [f1_ill, f2_ill, f3_ill, f4_ill]
-  x_inLast2Iterations = [copy.deepcopy(x), copy.deepcopy(x)]
-  x_history = []
-
-  last_iteration = 0
+    x = [x1, x2, x3, x4]
+    z = [z1, z2, z3, z4]
 
 
-  for iteration in range(max_iterations):
 
-        last_iteration = last_iteration + 1
-        # np array of shape = (len(x_inLast2Iterations) * n_agents * n_params, )
-              #   contains the absolute difference of each parameter of the agents in the last 2 iterations from the optimum.
-        dif_fromOptimum = np.reshape( [ [ [abs(x_inLast2Iterations[k][i][j,0] - x_opt[j]) for j in range(len(x_inLast2Iterations[0][0]))] for i in range(len(x_inLast2Iterations[0])) ] for k in range(len(x_inLast2Iterations))], newshape= -1)
-
-        if all(dif < stopping_condition for dif in dif_fromOptimum):
-              
-              x_history.append(x)
-              performance_dict[initial_condition] = {"n_iterationsUntilConvergence": iteration , "last_x": x, "x_history": np.array(x_history)} 
-              break
+    fs_private = [f1_ill, f2_ill, f3_ill, f4_ill]
+    x_inLast2Iterations = [copy.deepcopy(x), copy.deepcopy(x)]
+    x_history = []
 
 
-        # PROBLEM: uncommenting this line results in halving the number of iterations -> figure out why, maybe equivalent to doubling beta
-        # print(step_v3(x, z, fs_private, alpha= 3, beta= 0.2, subgradient= "autograd"))
 
-        x_history.append(copy.deepcopy(x))
+    last_iteration = 0
 
-        x, z = step_withMemory(x, consensus_memory, gradient_memory, fs_private, alpha= 3, beta= 0.2)
-        
-        x_inLast2Iterations[0] = copy.deepcopy(x_inLast2Iterations[1])
-        x_inLast2Iterations[1] = copy.deepcopy(x)
 
-        # print(x)
+    for memory_profile in memory_profiles:
+      for b in bs:
+        for _lambda in _lambdas:
+          for len_memory in lens_memory:
+            for beta_c in betas_c:
+              for beta_cm in betas_cm:
+                for beta_g in betas_g:
+                  for beta_gm in betas_gm:
 
-  performance_dict[(x_1_initial, x_2_initial)] = {"n_iterationsUntilConvergence": iteration , "last_x": x, "x_history": np.array(x_history)} 
+                    n_agents = len(fs_private)
+                    n_params = len(x[0])
+                    consensus_memory = np.zeros([n_agents, n_params, len_memory])
+                    gradient_memory = np.zeros([n_agents, n_params, len_memory])
 
+                    for iteration in range(max_iterations):
+
+                          last_iteration = last_iteration + 1
+                          # np array of shape = (len(x_inLast2Iterations) * n_agents * n_params, )
+                                #   contains the absolute difference of each parameter of the agents in the last 2 iterations from the optimum.
+                          dif_fromOptimum = np.reshape( [ [ [abs(x_inLast2Iterations[k][i][j,0] - x_opt[j]) for j in range(len(x_inLast2Iterations[0][0]))] for i in range(len(x_inLast2Iterations[0])) ] for k in range(len(x_inLast2Iterations))], newshape= -1)
+
+                          if all(dif < stopping_condition for dif in dif_fromOptimum):
+                                
+                               # x_history.append(x)
+                                # performance_dict[(initial_condition, memory_profile , b, _lambda, len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = {"n_iterationsUntilConvergence": iteration , "last_x": x, "x_history": np.array(x_history)} 
+                                performance_dict[(initial_condition, memory_profile, b, _lambda , len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = iteration
+
+
+                                break
+
+
+                          # PROBLEM: uncommenting this line results in halving the number of iterations -> figure out why, maybe equivalent to doubling beta
+                          # print(step_v3(x, z, fs_private, alpha= 3, beta= 0.2, subgradient= "autograd"))
+
+                         # x_history.append(copy.deepcopy(x))
+
+                          x, consensus_memory, gradient_memory = step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_profile= memory_profile, b= b, _lambda= _lambda, len_memory= len_memory, beta_c = beta_c, beta_cm= beta_cm, beta_g= beta_g, beta_gm= beta_gm)
+                          
+                          x_inLast2Iterations[0] = copy.deepcopy(x_inLast2Iterations[1])
+                          x_inLast2Iterations[1] = copy.deepcopy(x)
+
+                          # print(x)
+
+
+                    # performance_dict[(initial_condition, memory_profile, b, _lambda , len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = {"n_iterationsUntilConvergence": iteration , "last_x": x, "x_history": np.array(x_history)} 
+                    performance_dict[(initial_condition, memory_profile, b, _lambda , len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = iteration
+                    # print("performance_dict_initialCondition = ",  performance_dict_initialCondition)
+                    
+                    # performance_dict[( memory_profile , len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = performance_dict_initialCondition
+
+  return performance_dict
 
 
 
