@@ -439,7 +439,11 @@ def optimize( stopping_condition = 0.002, max_iterations = 1000, memory_profiles
 
     for memory_profile in memory_profiles:
       for b in bs:
+        if memory_profile != "exponential":
+           continue
         for _lambda in _lambdas:
+          if memory_profile != "fractional":
+             continue
           for len_memory in lens_memory:
             for beta_c in betas_c:
               for beta_cm in betas_cm:
