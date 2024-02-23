@@ -375,6 +375,7 @@ def step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_pro
                                     - beta_g * gradient_term[agent_i][param_i][0] \
                                     - beta_gm * gradient_memoryFeedback[agent_i][param_i][0]
         
+        # updating consensus mamory and gradient based on this iteration's sonsensus term and gradient descent term
         consensus_memory[agent_i][param_i][:-1] = consensus_memory[agent_i][param_i][1:]
         consensus_memory[agent_i][param_i][-1] = consesus_term[agent_i][param_i][0]
     
@@ -391,18 +392,14 @@ def step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_pro
 
 
 
-def optimize( stopping_condition = 0.002, max_iterations = 1000, memory_profiles= ["exponential"], bs= [2], _lambdas= [2.5], lens_memory= [10], betas_c = [0.2], betas_cm= [0.04], betas_g= [0.6], betas_gm= [0.36] ):
+def optimize( stopping_condition : float = 0.002, max_iterations : int = 1000, memory_profiles : list = ["exponential"], bs : list= [2], _lambdas: list = [2.5], lens_memory: list= [10], betas_c: list = [0.2], betas_cm: list = [0.04], betas_g: list = [0.6], betas_gm: list = [0.36] ):
   """
   Returns
   -------
   dict
 
-    dictionary of format {"hyperparameter name": hperparameter, ...}: {tupple(x_1_initial, x_2_initial) : {"n_iterationsUntilConvergence": n_iterationsUntilConvergence , "last_x": last_x, "x_history": x_history} } }
-
-      tupple(x_1_initial, x_2_initial) in {(1., 0.), (0., 1.)}  
+    dictionary of format { ( (x_1_initial, x_2_initial), memory_profile, optional_memoryProfileParameter, len_memory, beta_c, beta_cm, beta_g, beta_gm ) : n_iterationsUntilConvergence : int }
     
-      last_xs = np array shape (n_agents, n_params)
-        contains the final params of all agents
   """
 
   # --------------------- private objectives ------------------------
@@ -429,9 +426,6 @@ def optimize( stopping_condition = 0.002, max_iterations = 1000, memory_profiles
   initial_conditions = ( (1., 0.), (0., 1.) )
 
   for initial_condition in initial_conditions:
-      
-
-
 
 
     last_iteration = 0
@@ -560,7 +554,7 @@ def optimize( stopping_condition = 0.002, max_iterations = 1000, memory_profiles
 
     for memory_profile in memory_profiles:
 
-      if memory_profile not in  ("exponential", "fractional"):   # TODO: having 3 blocks to address this problem seems redundant, figure out a way to do it cleaner
+      if memory_profile not in ("exponential", "fractional"):   # TODO: having 3 blocks to address this problem seems redundant, figure out a way to do it cleaner
         for len_memory in lens_memory:
           for beta_c in betas_c:
             for beta_cm in betas_cm:
