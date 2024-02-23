@@ -491,7 +491,7 @@ def optimize( stopping_condition = 0.002, max_iterations = 1000, memory_profiles
 
                          # x_history.append(copy.deepcopy(x))
 
-                          x, consensus_memory, gradient_memory = step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_profile= memory_profile, b= b, _lambda= _lambda, len_memory= len_memory, beta_c = beta_c, beta_cm= beta_cm, beta_g= beta_g, beta_gm= beta_gm)
+                          x, consensus_memory, gradient_memory = step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_profile= memory_profile, b= b, len_memory= len_memory, beta_c = beta_c, beta_cm= beta_cm, beta_g= beta_g, beta_gm= beta_gm)
                           
                           x_inLast2Iterations[0] = copy.deepcopy(x_inLast2Iterations[1])
                           x_inLast2Iterations[1] = copy.deepcopy(x)
@@ -548,7 +548,7 @@ def optimize( stopping_condition = 0.002, max_iterations = 1000, memory_profiles
 
                                 break
 
-                          x, consensus_memory, gradient_memory = step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_profile= memory_profile, b= b, _lambda= _lambda, len_memory= len_memory, beta_c = beta_c, beta_cm= beta_cm, beta_g= beta_g, beta_gm= beta_gm)
+                          x, consensus_memory, gradient_memory = step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_profile= memory_profile, _lambda= _lambda, len_memory= len_memory, beta_c = beta_c, beta_cm= beta_cm, beta_g= beta_g, beta_gm= beta_gm)
                           
                           x_inLast2Iterations[0] = copy.deepcopy(x_inLast2Iterations[1])
                           x_inLast2Iterations[1] = copy.deepcopy(x)
@@ -599,7 +599,7 @@ def optimize( stopping_condition = 0.002, max_iterations = 1000, memory_profiles
 
                               break
 
-                        x, consensus_memory, gradient_memory = step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_profile= memory_profile, b= b, _lambda= _lambda, len_memory= len_memory, beta_c = beta_c, beta_cm= beta_cm, beta_g= beta_g, beta_gm= beta_gm)
+                        x, consensus_memory, gradient_memory = step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_profile= memory_profile, len_memory= len_memory, beta_c = beta_c, beta_cm= beta_cm, beta_g= beta_g, beta_gm= beta_gm)
                         
                         x_inLast2Iterations[0] = copy.deepcopy(x_inLast2Iterations[1])
                         x_inLast2Iterations[1] = copy.deepcopy(x)
