@@ -245,8 +245,7 @@ def fractional(x, _lambda= 2.5): # TODO: make sure it looks like you want it to 
     from scipy.special import gamma
 
     binomial_coefficient = (gamma(_lambda+1)) / (gamma(x+1) * gamma(_lambda-x+1))
-    # fract = (-1) ** x * binomial_coefficient    # original factional variation -> quite funky 
-    fract = binomial_coefficient
+    fract = (-1) ** (x-1) * binomial_coefficient
 
     return fract
 
