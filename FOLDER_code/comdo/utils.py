@@ -339,8 +339,8 @@ def step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_pro
   for agent_i in range(n_agents):
     for param_i in range(n_params):           
         
-      z_c[agent_i][param_i][0] = sum([ memory_weights[memory_i] * consensus_memory[agent_i][param_i][memory_i] for memory_i in range(len_memory)])
-      z_g[agent_i][param_i][0] = sum([ memory_weights[memory_i] * gradient_memory[agent_i][param_i][memory_i] for memory_i in range(len_memory)])
+      z_c[agent_i][param_i][0] = (1/len_memory) * sum([ memory_weights[memory_i] * consensus_memory[agent_i][param_i][memory_i] for memory_i in range(len_memory)])
+      z_g[agent_i][param_i][0] = (1/len_memory) * sum([ memory_weights[memory_i] * gradient_memory[agent_i][param_i][memory_i] for memory_i in range(len_memory)])
 
 
   for agent_i in range(n_agents):
