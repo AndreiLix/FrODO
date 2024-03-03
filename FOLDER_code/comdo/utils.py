@@ -400,11 +400,113 @@ def step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_pro
 
 
 
+def step_projected(x, consensus_memory, gradient_memory, fs_private, memory_profile= "projected", b= 2, _lambda= 2.5, len_memory= 10, beta_c = 0.2, beta_cm= 0.04, beta_g= 0.6, beta_gm= 0.36, beta_pg= 0.36):
+  """
+  Optimization algorithm using projected gradients (forward and backward).
+    
+    Desired traits:
+      - we get the perks of momentum (accelerated descent)
+      - without the overshooting of momentum (when close to minimum, algorithm behaves like vanilla g.d.)
+
+  Changes the states (x), consensus_memory and gradient_memory of our agents based on a step in the optimization process.
+
+  Parameters
+  ----------
+  x: np array, shape (n_agents, n_params, 1).
+    Agent states.
+
+  consensus_memory: np array, shape (n_agents, n_params, len_memory)
+    Memory of consensus error for each parameter of length len_memory.
+      Memory encoded such that:
+        consensus_memory[agent_i][param_i][0] = consensus error len_memory iterations ago.
+        consensus_memory[agent_i][param_i][-1] = consensus error 1 iteration ago.
+
+  gradient_memory: np array, shape (n_agents, n_params, len_gradientMemory)
+      Memory of past private subgradient values for each parameter of length len_gradientMemory.
+        Memory encoded such that:
+          consensus_memory[agent_i][param_i][0] = consensus error len_memory iterations ago.
+          consensus_memory[agent_i][param_i][-1] = consensus error 1 iteration ago.
+
+  b, _lambda: 
+    Scalar to parametrize the exponential and fractional memory profiles
+          
+  Returns
+  --------
+  x, consensus_memory, gradient_memory
+      The updated angents's states (x), updated consensus_memory and gradient_memory
+                                                                                                                                                                  
+  """
+
+
+  n_agents = len(fs_private)
+  n_params = len(x[0])
+
+  #---------------------------- first stage --------------------------------------
+
+  # computing the terms used for the updates in this iteration
+
+  consesus_term = np.zeros([n_agents, n_params,1])
+  gradient_term = np.zeros([n_agents, n_params,1])
+
+
+  for agent_i in range(n_agents):
+    for param_i in range(n_params):
+      consesus_term[agent_i][param_i][0] = beta_c * sum( [ (x[agent_j][param_i][0] - x[agent_i][param_i][0]) for agent_j in range(n_agents) if agent_j!= agent_i ] )
+  
+  for agent_i in range(n_agents):
+      gradient_term[agent_i] = get_gradientVector_Autograd(fs_private[agent_i], x[agent_i])
+
+ 
+  projG1 = np.zeros([n_agents, n_params,1])
+  projG2 = np.zeros([n_agents, n_params,1])
+
+  x_proj1 = np.copy(x)
+  x_proj2 = np.copy(x)
+
+  for agent_i in range(n_agents):
+    for param_i in range(n_params):           
+      
+      x_proj1[agent_i][param_i] = x[agent_i][param_i] + (x[agent_i][param_i] - beta_g * gradient_memory[agent_i][param_i][-1])
+      x_proj2[agent_i][param_i] = x[agent_i][param_i] - (x[agent_i][param_i] - beta_g * gradient_memory[agent_i][param_i][-1])
+
+
+    projG1[agent_i] = get_gradientVector_Autograd(fs_private[agent_i], x_proj1[agent_i])
+    projG2[agent_i] = get_gradientVector_Autograd(fs_private[agent_i], x_proj2[agent_i])
+  
+
+  # ================================================================
+
+
+  #---------------------------- second stage --------------------------------------
+
+  # updating x, consensus_memory and gradient_memory
+
+
+
+  # NOTE: all terms in update must be shape (n_agents, n_params, 1)
+
+  for agent_i in range(n_agents):
+    for param_i in range(n_params):
+        x[agent_i][param_i][0] =  x[agent_i][param_i][0] \
+                                    + beta_c * consesus_term[agent_i][param_i][0] \
+                                    - beta_g * gradient_term[agent_i][param_i][0] \
+                                    - beta_pg * projG1[agent_i][param_i][0] \
+                                    - beta_pg * projG2[agent_i][param_i][0]
+        
+        # updating consensus mamory and gradient based on this iteration's sonsensus term and gradient descent term
+        # consensus_memory[agent_i][param_i][:-1] = consensus_memory[agent_i][param_i][1:]
+        # consensus_memory[agent_i][param_i][-1] = consesus_term[agent_i][param_i][0]
+    
+        gradient_memory[agent_i][param_i][:-1] = gradient_memory[agent_i][param_i][1:]
+        gradient_memory[agent_i][param_i][-1] = gradient_term[agent_i][param_i][0]
+
+
+  return x, consensus_memory, gradient_memory
 
 
 
 
-def optimize( stopping_condition : float = 0.002, max_iterations : int = 1000, memory_profiles : list = ["exponential"], bs : list= [2], _lambdas: list = [2.5], lens_memory: list= [10], betas_c: list = [0.2], betas_cm: list = [0.04], betas_g: list = [0.6], betas_gm: list = [0.36] ):
+def optimize( stopping_condition : float = 0.002, max_iterations : int = 1000, memory_profiles : list = ["exponential"], bs : list= [2], _lambdas: list = [2.5], lens_memory: list= [10], betas_c: list = [0.2], betas_cm: list = [0.04], betas_g: list = [0.6], betas_gm: list = [0.36], betas_pg: list = [0.36] ):
   """
   Returns
   -------
@@ -441,6 +543,76 @@ def optimize( stopping_condition : float = 0.002, max_iterations : int = 1000, m
 
 
     last_iteration = 0
+
+
+    for memory_profile in memory_profiles:
+
+      if memory_profile == "projected":
+        for beta_pg in betas_pg:
+          for len_memory in lens_memory:
+            for beta_c in betas_c:
+              for beta_cm in betas_cm:
+                for beta_g in betas_g:
+                  for beta_gm in betas_gm:
+
+                    # assigning the same initial condition to all agents
+
+                    fs_private = [f1_ill, f2_ill, f3_ill, f4_ill]
+                    # x_history = []
+                    x1, x2, x3, x4 = 4 * [np.array(
+                                              [ [initial_condition[0]] ,
+                                                    [initial_condition[1]] ]
+                                              )]
+                    x = [x1, x2, x3, x4]
+
+                    # initializing integral terms. 
+                    # NOTE: each term must be 0
+                    # z1, z2, z3, z4 = 4 * [np.zeros_like(x1)]
+
+                    # z = [z1, z2, z3, z4]
+
+                    x_inLast2Iterations = [copy.deepcopy(x), copy.deepcopy(x)]
+                    n_agents = len(fs_private)
+                    n_params = len(x[0])
+                    consensus_memory = np.zeros([n_agents, n_params, len_memory])
+                    gradient_memory = np.zeros([n_agents, n_params, len_memory])
+
+                    for iteration in range(max_iterations):
+
+                          last_iteration = last_iteration + 1
+                          # np array of shape = (len(x_inLast2Iterations) * n_agents * n_params, )
+                                #   contains the absolute difference of each parameter of the agents in the last 2 iterations from the optimum.
+                          dif_fromOptimum = np.reshape( [ [ [abs(x_inLast2Iterations[k][i][j,0] - x_opt[j]) for j in range(len(x_inLast2Iterations[0][0]))] for i in range(len(x_inLast2Iterations[0])) ] for k in range(len(x_inLast2Iterations))], newshape= -1)
+
+                          if all(dif < stopping_condition for dif in dif_fromOptimum):
+                                
+                               # x_history.append(x)
+                                # performance_dict[(initial_condition, memory_profile , b, _lambda, len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = {"n_iterationsUntilConvergence": iteration , "last_x": x, "x_history": np.array(x_history)} 
+                                performance_dict[(initial_condition, memory_profile, len_memory, beta_pg, beta_c, beta_cm,  beta_g, beta_gm)] = iteration
+
+
+                                break
+
+
+                          # PROBLEM: uncommenting this line results in halving the number of iterations -> figure out why, maybe equivalent to doubling beta
+                          # print(step_v3(x, z, fs_private, alpha= 3, beta= 0.2, subgradient= "autograd"))
+
+                         # x_history.append(copy.deepcopy(x))
+
+                          x, consensus_memory, gradient_memory = step_projected(x, consensus_memory, gradient_memory, fs_private, memory_profile= memory_profile, len_memory= len_memory, beta_c = beta_c, beta_cm= beta_cm, beta_g= beta_g, beta_gm= beta_gm, beta_pg= beta_pg)
+                          
+                          x_inLast2Iterations[0] = copy.deepcopy(x_inLast2Iterations[1])
+                          x_inLast2Iterations[1] = copy.deepcopy(x)
+
+                          # print(x)
+
+
+                    # performance_dict[(initial_condition, memory_profile, b, _lambda , len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = {"n_iterationsUntilConvergence": iteration , "last_x": x, "x_history": np.array(x_history)} 
+                    performance_dict[(initial_condition, memory_profile, len_memory, beta_pg, beta_c, beta_cm,  beta_g, beta_gm)] = iteration
+                    # print("performance_dict_initialCondition = ",  performance_dict_initialCondition)
+                    
+                    # performance_dict[( memory_profile , len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = performance_dict_initialCondition
+
 
 
     for memory_profile in memory_profiles:
@@ -566,7 +738,7 @@ def optimize( stopping_condition : float = 0.002, max_iterations : int = 1000, m
 
     for memory_profile in memory_profiles:
 
-      if memory_profile not in ("exponential", "fractional"):   # TODO: having 3 blocks to address this problem seems redundant, figure out a way to do it cleaner
+      if memory_profile in ("constant", "linear"):   # TODO: having 3 blocks to address this problem seems redundant, figure out a way to do it cleaner
         for len_memory in lens_memory:
           for beta_c in betas_c:
             for beta_cm in betas_cm:
@@ -616,6 +788,19 @@ def optimize( stopping_condition : float = 0.002, max_iterations : int = 1000, m
 
 
   return performance_dict
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
