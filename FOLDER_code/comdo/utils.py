@@ -227,7 +227,7 @@ def constant(x):
     return con
 
 
-def linear(x): # slope redundant in linear, it can only hav e1 slope, dependent on len(memory)
+def linear(x): # slope redundant in linear, it can only have 1 slope, dependent on len(memory)
     lin = x
     return lin
 
@@ -236,7 +236,7 @@ def exponential(x, b= 2):
     exp = b ** x
     return exp
 
-def fractional(x, _lambda= 2.5): # TODO: make sure it looks like you want it to look, see the plot -> might need to flip it
+def fractional_v1(x, _lambda= 1.5): 
     """
     _lambda: float >= 0
         The fractional order to use.
@@ -249,7 +249,20 @@ def fractional(x, _lambda= 2.5): # TODO: make sure it looks like you want it to 
 
     return fract
 
+def fractional_v2(x, len_memory, _lambda= 1.5):
+    """
+    _lambda: float >= 0
+        The fractional order to use.
 
+    This version of fractional weighting is the discreized version of the Riemann-Liouville version.
+      Also found in "Discrete Fractional order PID controller". 
+    """
+
+    from scipy.special import gamma
+
+    fract = ( 1 / gamma(_lambda) ) *  1 / ((len_memory-x) ** (1-_lambda))
+
+    return fract
 
 
 def step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_profile= "exponential", b= 2, _lambda= 2.5, len_memory= 10, beta_c = 0.2, beta_cm= 0.04, beta_g= 0.6, beta_gm= 0.36):
@@ -308,27 +321,27 @@ def step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_pro
   gradient_memoryFeedback = np.zeros([n_agents, n_params, 1])
 
   if memory_profile == "constant":
-    # TODO: consider splitting this into 2 for consesnus and gradient memory weights
     memory_weights = np.array([constant(x) for x in range(1, len_memory + 1)])
 
   if memory_profile == "linear":
-    # TODO: consider splitting this into 2 for consesnus and gradient memory weights
     memory_weights = np.array([linear(x) for x in range(1, len_memory + 1)])
     # scaling values between 0 and 1
     memory_weights = memory_weights / max(memory_weights)
 
   if memory_profile == "exponential":
-    # TODO: consider splitting this into 2 for consesnus and gradient memory weights
     memory_weights = np.array([exponential(x, b) for x in range(1, len_memory + 1)])
     # scaling values between 0 and 1
     memory_weights = memory_weights / max(memory_weights)
 
-  if memory_profile == "fractional":
-    # TODO: consider splitting this into 2 for consesnus and gradient memory weights
-    memory_weights = np.array([fractional(x, _lambda) for x in range(1, len_memory + 1)])
+  if memory_profile == "fractional_v1":
+    memory_weights = np.array([fractional_v1(x, _lambda) for x in range(1, len_memory + 1)])
     # scaling values between 0 and 1
     memory_weights = memory_weights / max(memory_weights)
 
+  if memory_profile == "fractional_v2":
+    memory_weights = np.array([fractional_v2(x, len_memory, _lambda) for x in range(len_memory)])
+    # scaling values between 0 and 1
+    memory_weights = memory_weights / max(memory_weights)
 
 
   z_c = np.zeros([n_agents, n_params, 1])
