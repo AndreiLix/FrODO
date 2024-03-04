@@ -588,7 +588,7 @@ def optimize( stopping_condition : float = 0.002, max_iterations : int = 1000, m
                                 
                                # x_history.append(x)
                                 # performance_dict[(initial_condition, memory_profile , b, _lambda, len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = {"n_iterationsUntilConvergence": iteration , "last_x": x, "x_history": np.array(x_history)} 
-                                performance_dict[(initial_condition, memory_profile, len_memory, beta_pg, beta_c, beta_cm,  beta_g, beta_gm)] = iteration
+                                performance_dict[(initial_condition, memory_profile, beta_c,  beta_g, beta_pg)] = iteration
 
 
                                 break
@@ -608,7 +608,7 @@ def optimize( stopping_condition : float = 0.002, max_iterations : int = 1000, m
 
 
                     # performance_dict[(initial_condition, memory_profile, b, _lambda , len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = {"n_iterationsUntilConvergence": iteration , "last_x": x, "x_history": np.array(x_history)} 
-                    performance_dict[(initial_condition, memory_profile, len_memory, beta_pg, beta_c, beta_cm,  beta_g, beta_gm)] = iteration
+                    performance_dict[(initial_condition, memory_profile, beta_c,  beta_g, beta_pg)] = iteration
                     # print("performance_dict_initialCondition = ",  performance_dict_initialCondition)
                     
                     # performance_dict[( memory_profile , len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = performance_dict_initialCondition
