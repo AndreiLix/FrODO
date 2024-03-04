@@ -231,7 +231,7 @@ def linear(x): # slope redundant in linear, it can only have 1 slope, dependent 
     lin = x
     return lin
 
-def exponential(x, b= 2):
+def exponential(x, b= 3):
     assert b > 1, "Error: b must be > 1."
     exp = b ** x
     return exp
@@ -265,7 +265,7 @@ def fractional_v2(x, len_memory, _lambda= 1.5):
     return fract
 
 
-def step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_profile= "exponential", b= 2, _lambda= 2.5, len_memory= 10, beta_c = 0.2, beta_cm= 0.04, beta_g= 0.6, beta_gm= 0.36):
+def step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_profile= "exponential", b= 3, _lambda= 1.5, len_memory= 10, beta_c = 0.2, beta_cm= 0.04, beta_g= 0.6, beta_gm= 0.36):
   """
   Like step_sequential, but works with different memory profiles + more hyperparameter flexibility.
 
@@ -400,7 +400,7 @@ def step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_pro
 
 
 
-def step_projected(x, consensus_memory, gradient_memory, fs_private, memory_profile= "projected", b= 2, _lambda= 2.5, len_memory= 10, beta_c = 0.2, beta_cm= 0.04, beta_g= 0.6, beta_gm= 0.36, beta_pg= 0.36):
+def step_projected(x, consensus_memory, gradient_memory, fs_private, beta_c = 0.2, beta_g= 0.6, beta_pg= 0.36):
   """
   Optimization algorithm using projected gradients (forward and backward).
     
@@ -542,6 +542,7 @@ def optimize( stopping_condition : float = 0.002, max_iterations : int = 1000, m
   for initial_condition in initial_conditions:
 
 
+
     last_iteration = 0
 
 
@@ -553,6 +554,16 @@ def optimize( stopping_condition : float = 0.002, max_iterations : int = 1000, m
             for beta_c in betas_c:
               for beta_cm in betas_cm:
                 for beta_g in betas_g:
+
+                  # TODO: remove these conditions when Monte Carlo assessment done
+
+                  
+                  if initial_condition == (1., 0.) and beta_g == 1:
+                     continue
+                  
+                  if initial_condition == (0., 1.) and beta_g == 0.1:
+                     continue
+                  
                   for beta_gm in betas_gm:
 
                     # assigning the same initial condition to all agents
@@ -586,20 +597,18 @@ def optimize( stopping_condition : float = 0.002, max_iterations : int = 1000, m
 
                           if all(dif < stopping_condition for dif in dif_fromOptimum):
                                 
-                               # x_history.append(x)
+                                # x_history.append(copy.deepcopy(x))
                                 # performance_dict[(initial_condition, memory_profile , b, _lambda, len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = {"n_iterationsUntilConvergence": iteration , "last_x": x, "x_history": np.array(x_history)} 
                                 performance_dict[(initial_condition, memory_profile, beta_c,  beta_g, beta_pg)] = iteration
-
-
                                 break
 
 
                           # PROBLEM: uncommenting this line results in halving the number of iterations -> figure out why, maybe equivalent to doubling beta
                           # print(step_v3(x, z, fs_private, alpha= 3, beta= 0.2, subgradient= "autograd"))
 
-                         # x_history.append(copy.deepcopy(x))
+                        #  x_history.append(copy.deepcopy(x))
 
-                          x, consensus_memory, gradient_memory = step_projected(x, consensus_memory, gradient_memory, fs_private, memory_profile= memory_profile, len_memory= len_memory, beta_c = beta_c, beta_cm= beta_cm, beta_g= beta_g, beta_gm= beta_gm, beta_pg= beta_pg)
+                          x, consensus_memory, gradient_memory = step_projected(x, consensus_memory, gradient_memory, fs_private, beta_c = beta_c, beta_g= beta_g, beta_pg= beta_pg)
                           
                           x_inLast2Iterations[0] = copy.deepcopy(x_inLast2Iterations[1])
                           x_inLast2Iterations[1] = copy.deepcopy(x)
@@ -623,6 +632,16 @@ def optimize( stopping_condition : float = 0.002, max_iterations : int = 1000, m
             for beta_c in betas_c:
               for beta_cm in betas_cm:
                 for beta_g in betas_g:
+
+                  # TODO: remove these conditions when Monte Carlo assessment done
+
+                  
+                  if initial_condition == (1., 0.) and beta_g == 1:
+                     continue
+                  
+                  if initial_condition == (0., 1.) and beta_g == 0.1:
+                     continue
+                  
                   for beta_gm in betas_gm:
 
                     # assigning the same initial condition to all agents
@@ -686,12 +705,22 @@ def optimize( stopping_condition : float = 0.002, max_iterations : int = 1000, m
 
     for memory_profile in memory_profiles:
 
-      if memory_profile == "fractional":
+      if memory_profile in ("fractional_v1", "fractional_v2"):
         for _lambda in _lambdas:
           for len_memory in lens_memory:
             for beta_c in betas_c:
               for beta_cm in betas_cm:
                 for beta_g in betas_g:
+
+                  # TODO: remove these conditions when Monte Carlo assessment done
+
+                  
+                  if initial_condition == (1., 0.) and beta_g == 1:
+                     continue
+                  
+                  if initial_condition == (0., 1.) and beta_g == 0.1:
+                     continue
+                  
                   for beta_gm in betas_gm:
 
                     # assigning the same initial condition to all agents
@@ -743,6 +772,16 @@ def optimize( stopping_condition : float = 0.002, max_iterations : int = 1000, m
           for beta_c in betas_c:
             for beta_cm in betas_cm:
               for beta_g in betas_g:
+
+                # TODO: remove these conditions when Monte Carlo assessment done
+
+                
+                if initial_condition == (1., 0.) and beta_g == 1:
+                    continue
+                
+                if initial_condition == (0., 1.) and beta_g == 0.1:
+                    continue
+                
                 for beta_gm in betas_gm:
 
                   # assigning the same initial condition to all agents
