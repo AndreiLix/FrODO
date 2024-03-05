@@ -236,7 +236,7 @@ def exponential(x, b= 3):
     exp = b ** x
     return exp
 
-def fractional_v1(x, _lambda= 1.5): 
+def fractional_v1(x, _lambda= 0.15): 
     """
     _lambda: float >= 0
         The fractional order to use.
@@ -249,7 +249,7 @@ def fractional_v1(x, _lambda= 1.5):
 
     return fract
 
-def fractional_v2(x, len_memory, _lambda= 1.5):
+def fractional_v2(x, len_memory, _lambda= 0.15):
     """
     _lambda: float >= 0
         The fractional order to use.
@@ -265,7 +265,7 @@ def fractional_v2(x, len_memory, _lambda= 1.5):
     return fract
 
 
-def step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_profile= "exponential", b= 3, _lambda= 1.5, len_memory= 10, beta_c = 0.2, beta_cm= 0.04, beta_g= 0.6, beta_gm= 0.36):
+def step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_profile= "exponential", b= 3, _lambda= 0.15, len_memory= 10, beta_c = 0.2, beta_cm= 0.04, beta_g= 0.6, beta_gm= 0.36):
   """
   Like step_sequential, but works with different memory profiles + more hyperparameter flexibility.
 
