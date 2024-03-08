@@ -238,8 +238,8 @@ def exponential(x, b= 3):
 
 def fractional_v1(x, _lambda= 0.15): 
     """
-    _lambda: float >= 0
-        The fractional order to use.
+    _lambda: float in (0, 1)
+        The fractional order to use. Must be in (0,1).
     """
 
     from scipy.special import gamma
@@ -251,8 +251,8 @@ def fractional_v1(x, _lambda= 0.15):
 
 def fractional_v2(x, len_memory, _lambda= 0.15):
     """
-    _lambda: float >= 0
-        The fractional order to use.
+    _lambda: float in (0, 1)
+        The fractional order to use. Must be in (0,1).
 
     This version of fractional weighting is the discreized version of the Riemann-Liouville version.
       Also found in "Discrete Fractional order PID controller". 
@@ -537,7 +537,7 @@ def optimize( stopping_condition : float = 0.002, max_iterations : int = 1000, m
   # performance_dict_initialCondition = {}
   performance_dict = {}
 
-  initial_conditions = ( (1., 0.), (0., 1.) )
+  initial_conditions = ( (1., 0.), (0.86, 0.5), (0.5, 0.86), (0., 1.) )
 
   for initial_condition in initial_conditions:
 
@@ -827,6 +827,328 @@ def optimize( stopping_condition : float = 0.002, max_iterations : int = 1000, m
 
 
   return performance_dict
+
+
+
+
+
+
+
+
+
+
+
+
+def optimize_Rosenbrock( initial_condition= (np.random.uniform(0, 2), np.random.uniform(0, 2)), stopping_condition : float = 0.002, max_iterations : int = 1000, memory_profiles : list = ["exponential"], bs : list= [2], _lambdas: list = [2.5], lens_memory: list= [10], betas_c: list = [0.2], betas_cm: list = [0.04], betas_g: list = [0.6], betas_gm: list = [0.36], betas_pg: list = [0.36] ):
+  """
+
+  Differences from the initial setup for testing sensitivity to initial conditions:
+    - using the Rosenbrock function as the global objective  (a= 1, b= 100);
+    - using only 2 agents instead of 4;
+    - staring from the same initial condition
+    - initial_condition = (0, 0)
+    - global optimum (for f1 + f2) = (1., 1.)
+
+    
+
+  Parameters
+  ----------
+  initial_condition : tuple shape (2,) 
+    default (np.random.uniform(0, 2), np.random.uniform(0, 2)) 
+      sampling from inside the square (0, 2)x(0, 2)
+
+
+
+  Returns
+  -------
+  dict
+
+    dictionary of format { ( memory_profile, optional_memoryProfileParameter, len_memory, beta_c, beta_cm, beta_g, beta_gm ) : n_iterationsUntilConvergence : int }
+    
+  """
+
+  # --------------------- private objectives ------------------------
+
+    # their sum has the Rosenbrock structure and its minimum is at (1, 1).
+  
+  def f1(x1, x2, a=1.0, b=100.0):
+    # Minima at x1=a
+    return (a - x1)**2
+
+  def f2(x1, x2, a=1.0, b=100.0):
+      # Minima at x2=x1**2
+      return (b * (x2 - x1**2)**2)
+  
+  # ==================================================================
+
+  x_opt = np.array(
+                [ [1.] ,
+                  [1.] ]
+                )
+
+  # performance_dict_initialCondition = {}
+  performance_dict = {}
+
+  initial_condition = (np.random.uniform(0, 2), np.random.uniform(0, 2))
+  # initial_condition = (0., 1.)
+
+  last_iteration = 0
+
+  for memory_profile in memory_profiles:
+
+    if memory_profile == "projected":
+      for beta_pg in betas_pg:
+        for len_memory in lens_memory:
+          for beta_c in betas_c:
+            for beta_cm in betas_cm:
+              for beta_g in betas_g:
+
+                for beta_gm in betas_gm:
+
+                  # assigning the same initial condition to all agents
+
+                  fs_private = [f1, f2]
+                  x_history = []
+                  x1, x2 = 2 * [np.array(
+                                        [ [initial_condition[0]] ,
+                                          [initial_condition[1]] ]
+                                        )]
+                  x = [x1, x2]
+
+                  # initializing integral terms. 
+                  # NOTE: each term must be 0
+                  # z1, z2, z3, z4 = 4 * [np.zeros_like(x1)]
+
+                  # z = [z1, z2, z3, z4]
+
+                  x_inLast2Iterations = [copy.deepcopy(x), copy.deepcopy(x)]
+                  n_agents = len(fs_private)
+                  n_params = len(x[0])
+                  consensus_memory = np.zeros([n_agents, n_params, len_memory])
+                  gradient_memory = np.zeros([n_agents, n_params, len_memory])
+
+                  for iteration in range(max_iterations):
+
+                        last_iteration = last_iteration + 1
+                        # np array of shape = (len(x_inLast2Iterations) * n_agents * n_params, )
+                              #   contains the absolute difference of each parameter of the agents in the last 2 iterations from the optimum.
+                        dif_fromOptimum = np.reshape( [ [ [abs(x_inLast2Iterations[k][i][j,0] - x_opt[j]) for j in range(len(x_inLast2Iterations[0][0]))] for i in range(len(x_inLast2Iterations[0])) ] for k in range(len(x_inLast2Iterations))], newshape= -1)
+
+                        if all(dif < stopping_condition for dif in dif_fromOptimum):
+                              
+                              x_history.append(copy.deepcopy(x))
+                              # performance_dict[(initial_condition, memory_profile , b, _lambda, len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = {"n_iterationsUntilConvergence": iteration , "last_x": x, "x_history": np.array(x_history)} 
+                              performance_dict[(initial_condition, memory_profile, beta_c,  beta_g, beta_pg)] = (iteration, x_history)
+                              break
+
+
+                        # PROBLEM: uncommenting this line results in halving the number of iterations -> figure out why, maybe equivalent to doubling beta
+                        # print(step_v3(x, z, fs_private, alpha= 3, beta= 0.2, subgradient= "autograd"))
+
+                        x_history.append(copy.deepcopy(x))
+
+                        x, consensus_memory, gradient_memory = step_projected(x, consensus_memory, gradient_memory, fs_private, beta_c = beta_c, beta_g= beta_g, beta_pg= beta_pg)
+                        
+                        x_inLast2Iterations[0] = copy.deepcopy(x_inLast2Iterations[1])
+                        x_inLast2Iterations[1] = copy.deepcopy(x)
+
+                        # print(x)
+
+
+                  # performance_dict[(initial_condition, memory_profile, b, _lambda , len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = {"n_iterationsUntilConvergence": iteration , "last_x": x, "x_history": np.array(x_history)} 
+                  performance_dict[(initial_condition, memory_profile, beta_c,  beta_g, beta_pg)] = (iteration, x_history)
+                  # print("performance_dict_initialCondition = ",  performance_dict_initialCondition)
+                  
+                  # performance_dict[( memory_profile , len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = performance_dict_initialCondition
+
+
+
+  for memory_profile in memory_profiles:
+
+    if memory_profile == "exponential":
+      for b in bs:
+        for len_memory in lens_memory:
+          for beta_c in betas_c:
+            for beta_cm in betas_cm:
+              for beta_g in betas_g:
+                for beta_gm in betas_gm:
+
+
+                  fs_private = [f1, f2]
+                  x_history = []
+                  x1, x2 = 2 * [np.array(
+                                        [ [initial_condition[0]] ,
+                                          [initial_condition[1]] ]
+                                        )]
+                  x = [x1, x2]
+
+                  x_inLast2Iterations = [copy.deepcopy(x), copy.deepcopy(x)]
+                  n_agents = len(fs_private)
+                  n_params = len(x[0])
+                  consensus_memory = np.zeros([n_agents, n_params, len_memory])
+                  gradient_memory = np.zeros([n_agents, n_params, len_memory])
+
+                  for iteration in range(max_iterations):
+
+                        last_iteration = last_iteration + 1
+                        # np array of shape = (len(x_inLast2Iterations) * n_agents * n_params, )
+                              #   contains the absolute difference of each parameter of the agents in the last 2 iterations from the optimum.
+                        dif_fromOptimum = np.reshape( [ [ [abs(x_inLast2Iterations[k][i][j,0] - x_opt[j]) for j in range(len(x_inLast2Iterations[0][0]))] for i in range(len(x_inLast2Iterations[0])) ] for k in range(len(x_inLast2Iterations))], newshape= -1)
+
+                        if all(dif < stopping_condition for dif in dif_fromOptimum):
+                              
+                              x_history.append(copy.deepcopy(x))
+                              # performance_dict[(initial_condition, memory_profile , b, _lambda, len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = {"n_iterationsUntilConvergence": iteration , "last_x": x, "x_history": np.array(x_history)} 
+                              performance_dict[(initial_condition, memory_profile, b, len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = (iteration, x_history)
+
+
+                              break
+
+
+                        # PROBLEM: uncommenting this line results in halving the number of iterations -> figure out why, maybe equivalent to doubling beta
+                        # print(step_v3(x, z, fs_private, alpha= 3, beta= 0.2, subgradient= "autograd"))
+
+                        x_history.append(copy.deepcopy(x))
+
+                        x, consensus_memory, gradient_memory = step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_profile= memory_profile, b= b, len_memory= len_memory, beta_c = beta_c, beta_cm= beta_cm, beta_g= beta_g, beta_gm= beta_gm)
+                        
+                        x_inLast2Iterations[0] = copy.deepcopy(x_inLast2Iterations[1])
+                        x_inLast2Iterations[1] = copy.deepcopy(x)
+
+                        # print(x)
+
+
+                  # performance_dict[(initial_condition, memory_profile, b, _lambda , len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = {"n_iterationsUntilConvergence": iteration , "last_x": x, "x_history": np.array(x_history)} 
+                  performance_dict[(initial_condition, memory_profile, b, len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = (iteration, x_history)
+                  # print("performance_dict_initialCondition = ",  performance_dict_initialCondition)
+                  
+                  # performance_dict[( memory_profile , len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = performance_dict_initialCondition
+
+
+  for memory_profile in memory_profiles:
+
+    if memory_profile in ("fractional_v1", "fractional_v2"):
+      for _lambda in _lambdas:
+        for len_memory in lens_memory:
+          for beta_c in betas_c:
+            for beta_cm in betas_cm:
+              for beta_g in betas_g:
+                for beta_gm in betas_gm:
+
+
+                  fs_private = [f1, f2]
+                  x_history = []
+                  x1, x2 = 2 * [np.array(
+                                        [ [initial_condition[0]] ,
+                                          [initial_condition[1]] ]
+                                        )]
+                  x = [x1, x2]
+
+                  x_inLast2Iterations = [copy.deepcopy(x), copy.deepcopy(x)]
+                  n_agents = len(fs_private)
+                  n_params = len(x[0])
+                  consensus_memory = np.zeros([n_agents, n_params, len_memory])
+                  gradient_memory = np.zeros([n_agents, n_params, len_memory])
+
+                  for iteration in range(max_iterations):
+
+                        last_iteration = last_iteration + 1
+                        # np array of shape = (len(x_inLast2Iterations) * n_agents * n_params, )
+                              #   contains the absolute difference of each parameter of the agents in the last 2 iterations from the optimum.
+                        dif_fromOptimum = np.reshape( [ [ [abs(x_inLast2Iterations[k][i][j,0] - x_opt[j]) for j in range(len(x_inLast2Iterations[0][0]))] for i in range(len(x_inLast2Iterations[0])) ] for k in range(len(x_inLast2Iterations))], newshape= -1)
+
+                        if all(dif < stopping_condition for dif in dif_fromOptimum):
+                              
+                              x_history.append(copy.deepcopy(x))
+                              # performance_dict[(initial_condition, memory_profile , b, _lambda, len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = {"n_iterationsUntilConvergence": iteration , "last_x": x, "x_history": np.array(x_history)} 
+                              performance_dict[(initial_condition, memory_profile, _lambda , len_memory, beta_c, beta_cm,  beta_g, beta_gm)] =  (iteration, x_history)
+
+                              break
+                        
+                        x_history.append(copy.deepcopy(x))
+
+                        x, consensus_memory, gradient_memory = step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_profile= memory_profile, _lambda= _lambda, len_memory= len_memory, beta_c = beta_c, beta_cm= beta_cm, beta_g= beta_g, beta_gm= beta_gm)
+                        
+                        x_inLast2Iterations[0] = copy.deepcopy(x_inLast2Iterations[1])
+                        x_inLast2Iterations[1] = copy.deepcopy(x)
+
+                        # print(x)
+
+                  performance_dict[(initial_condition, memory_profile, _lambda , len_memory, beta_c, beta_cm,  beta_g, beta_gm)] =  (iteration, x_history)
+                  
+
+  for memory_profile in memory_profiles:
+
+    if memory_profile in ("constant", "linear"):   # TODO: having 3 blocks to address this problem seems redundant, figure out a way to do it cleaner
+      for len_memory in lens_memory:
+        for beta_c in betas_c:
+          for beta_cm in betas_cm:
+            for beta_g in betas_g:
+              for beta_gm in betas_gm:
+              
+
+                fs_private = [f1, f2]
+                x_history = []
+                x1, x2 = 2 * [np.array(
+                                      [ [initial_condition[0]] ,
+                                        [initial_condition[1]] ]
+                                      )]
+                x = [x1, x2]
+
+                print("x before optimization", x)
+
+                x_inLast2Iterations = [copy.deepcopy(x), copy.deepcopy(x)]
+                n_agents = len(fs_private)
+                n_params = len(x[0])
+                consensus_memory = np.zeros([n_agents, n_params, len_memory])
+                gradient_memory = np.zeros([n_agents, n_params, len_memory])
+
+                for iteration in range(max_iterations):
+
+                      last_iteration = last_iteration + 1
+                      # np array of shape = (len(x_inLast2Iterations) * n_agents * n_params, )
+                            #   contains the absolute difference of each parameter of the agents in the last 2 iterations from the optimum.
+                      dif_fromOptimum = np.reshape( [ [ [abs(x_inLast2Iterations[k][i][j,0] - x_opt[j]) for j in range(len(x_inLast2Iterations[0][0]))] for i in range(len(x_inLast2Iterations[0])) ] for k in range(len(x_inLast2Iterations))], newshape= -1)
+
+                      if all(dif < stopping_condition for dif in dif_fromOptimum):
+                            
+                            x_history.append(copy.deepcopy(x))
+                            # performance_dict[(initial_condition, memory_profile , b, _lambda, len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = {"n_iterationsUntilConvergence": iteration , "last_x": x, "x_history": np.array(x_history)} 
+                            performance_dict[(initial_condition, memory_profile, len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = (iteration, x_history)
+
+
+                            break
+
+                      x_history.append(copy.deepcopy(x))
+
+                      print("x during optimization", x)
+
+                      x, consensus_memory, gradient_memory = step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_profile= memory_profile, len_memory= len_memory, beta_c = beta_c, beta_cm= beta_cm, beta_g= beta_g, beta_gm= beta_gm)
+                      
+                      x_inLast2Iterations[0] = copy.deepcopy(x_inLast2Iterations[1])
+                      x_inLast2Iterations[1] = copy.deepcopy(x)
+
+                      # print(x)
+
+                performance_dict[(initial_condition, memory_profile, len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = (iteration, x_history)
+
+
+  return performance_dict
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
