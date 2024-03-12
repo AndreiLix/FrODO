@@ -506,7 +506,7 @@ def step_projected(x, consensus_memory, gradient_memory, fs_private, beta_c = 0.
 
 
 
-def optimize( stopping_condition : float = 0.002, max_iterations : int = 1000, memory_profiles : list = ["exponential"], bs : list= [2], _lambdas: list = [2.5], lens_memory: list= [10], betas_c: list = [0.2], betas_cm: list = [0.04], betas_g: list = [0.6], betas_gm: list = [0.36], betas_pg: list = [0.36] ):
+def optimize_IllDefinedHessian( stopping_condition : float = 0.002, max_iterations : int = 1000, memory_profiles : list = ["exponential"], bs : list= [2], _lambdas: list = [2.5], lens_memory: list= [10], betas_c: list = [0.2], betas_cm: list = [0.04], betas_g: list = [0.6], betas_gm: list = [0.36], betas_pg: list = [0.36] ):
   """
   Returns
   -------
@@ -558,11 +558,11 @@ def optimize( stopping_condition : float = 0.002, max_iterations : int = 1000, m
                   # TODO: remove these conditions when Monte Carlo assessment done
 
                   
-                  if initial_condition == (1., 0.) and beta_g == 1:
-                     continue
+                  # if initial_condition == (1., 0.) and beta_g == 1:
+                  #    continue
                   
-                  if initial_condition == (0., 1.) and beta_g == 0.1:
-                     continue
+                  # if initial_condition == (0., 1.) and beta_g == 0.1:
+                  #    continue
                   
                   for beta_gm in betas_gm:
 
@@ -636,11 +636,11 @@ def optimize( stopping_condition : float = 0.002, max_iterations : int = 1000, m
                   # TODO: remove these conditions when Monte Carlo assessment done
 
                   
-                  if initial_condition == (1., 0.) and beta_g == 1:
-                     continue
+                  # if initial_condition == (1., 0.) and beta_g == 1:
+                  #    continue
                   
-                  if initial_condition == (0., 1.) and beta_g == 0.1:
-                     continue
+                  # if initial_condition == (0., 1.) and beta_g == 0.1:
+                  #    continue
                   
                   for beta_gm in betas_gm:
 
@@ -715,11 +715,11 @@ def optimize( stopping_condition : float = 0.002, max_iterations : int = 1000, m
                   # TODO: remove these conditions when Monte Carlo assessment done
 
                   
-                  if initial_condition == (1., 0.) and beta_g == 1:
-                     continue
+                  # if initial_condition == (1., 0.) and beta_g == 1:
+                  #    continue
                   
-                  if initial_condition == (0., 1.) and beta_g == 0.1:
-                     continue
+                  # if initial_condition == (0., 1.) and beta_g == 0.1:
+                  #    continue
                   
                   for beta_gm in betas_gm:
 
@@ -776,11 +776,11 @@ def optimize( stopping_condition : float = 0.002, max_iterations : int = 1000, m
                 # TODO: remove these conditions when Monte Carlo assessment done
 
                 
-                if initial_condition == (1., 0.) and beta_g == 1:
-                    continue
+                # if initial_condition == (1., 0.) and beta_g == 1:
+                #     continue
                 
-                if initial_condition == (0., 1.) and beta_g == 0.1:
-                    continue
+                # if initial_condition == (0., 1.) and beta_g == 0.1:
+                #     continue
                 
                 for beta_gm in betas_gm:
 
@@ -869,7 +869,7 @@ def optimize_Rosenbrock( initial_condition= (np.random.uniform(0, 2), np.random.
 
   # --------------------- private objectives ------------------------
 
-    # their sum has the Rosenbrock structure and its minimum is at (1, 1).
+    # their sum is the classic Rosenbrock function and its minimum is at (a, a**2).
   
   def f1(x1, x2, a=1.0, b=100.0):
     # Minima at x1=a
@@ -888,9 +888,6 @@ def optimize_Rosenbrock( initial_condition= (np.random.uniform(0, 2), np.random.
 
   # performance_dict_initialCondition = {}
   performance_dict = {}
-
-  initial_condition = (np.random.uniform(0, 2), np.random.uniform(0, 2))
-  # initial_condition = (0., 1.)
 
   last_iteration = 0
 
@@ -1133,7 +1130,7 @@ def optimize_Rosenbrock( initial_condition= (np.random.uniform(0, 2), np.random.
                 performance_dict[(initial_condition, memory_profile, len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = (iteration, x_history)
 
 
-  return performance_dict
+  return performance_dict 
 
 
 
