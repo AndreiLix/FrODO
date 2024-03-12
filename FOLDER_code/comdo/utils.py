@@ -846,14 +846,15 @@ def optimize_Rosenbrock( initial_condition= (np.random.uniform(0, 2), np.random.
     - using the Rosenbrock function as the global objective  (a= 1, b= 100);
     - using only 2 agents instead of 4;
     - staring from the same initial condition
-    - initial_condition = (0, 0)
+    - initial_condition = np.random.uniform(0, 2), np.random.uniform(0, 2)
     - global optimum (for f1 + f2) = (1., 1.)
 
     
 
   Parameters
   ----------
-  initial_condition : tuple shape (2,) 
+  initial_condition : tuple shape (2,)
+    must contain type float
     default (np.random.uniform(0, 2), np.random.uniform(0, 2)) 
       sampling from inside the square (0, 2)x(0, 2)
 
