@@ -280,13 +280,13 @@ def step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_pro
     Memory of consensus error for each parameter of length len_memory.
       Memory encoded such that:
         consensus_memory[agent_i][param_i][0] = consensus error len_memory iterations ago.
-        consensus_memory[agent_i][param_i][-1] = consensus error 1 iteration ago.
+        consensus_memory[agent_i][param_i][-1] = consensus error in the previous iteration.
 
   gradient_memory: np array, shape (n_agents, n_params, len_gradientMemory)
       Memory of past private subgradient values for each parameter of length len_gradientMemory.
         Memory encoded such that:
-          consensus_memory[agent_i][param_i][0] = consensus error len_memory iterations ago.
-          consensus_memory[agent_i][param_i][-1] = consensus error 1 iteration ago.
+          gradient_memory[agent_i][param_i][0] = gradient len_memory iterations ago.
+          gradient_memory[agent_i][param_i][-1] = gradient in the previous iteration.
 
   b, _lambda: 
     Scalar to parametrize the exponential and fractional memory profiles
@@ -337,6 +337,8 @@ def step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_pro
     memory_weights = np.array([fractional_v1(x, _lambda) for x in range(1, len_memory + 1)])
     # scaling values between 0 and 1
     memory_weights = memory_weights / max(memory_weights)
+    #reversing array (only for fractional_v1)
+    memory_weights = np.flip(memory_weights)
 
   if memory_profile == "fractional_v2":
     memory_weights = np.array([fractional_v2(x, len_memory, _lambda) for x in range(len_memory)])
