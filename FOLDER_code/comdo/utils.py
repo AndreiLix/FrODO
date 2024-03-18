@@ -265,7 +265,7 @@ def fractional_v2(x, len_memory, _lambda= 0.15):
     return fract
 
 
-def step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_profile= "exponential", b= 3, _lambda= 0.15, len_memory= 10, beta_c = 0.2, beta_cm= 0.04, beta_g= 0.6, beta_gm= 0.36):
+def step_withMemory(x, consensus_memory, gradient_memory, fs_private, scaled_memory= False, memory_profile= "exponential", b= 3, _lambda= 0.15, len_memory= 10, beta_c = 0.2, beta_cm= 0.04, beta_g= 0.6, beta_gm= 0.36):
   """
   Like step_sequential, but works with different memory profiles + more hyperparameter flexibility.
 
@@ -291,6 +291,11 @@ def step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_pro
   b, _lambda: 
     Scalar to parametrize the exponential and fractional memory profiles
           
+    
+  scaled_memory: bool
+    If the memory feedback should be scaled by memory memory length.
+  
+    
   Returns
   --------
   x, consensus_memory, gradient_memory
@@ -317,11 +322,10 @@ def step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_pro
   for agent_i in range(n_agents):
       gradient_term[agent_i] = get_gradientVector_Autograd(fs_private[agent_i], x[agent_i])
 
-  consensus_memoryFeedback = np.zeros([n_agents, n_params, 1])
-  gradient_memoryFeedback = np.zeros([n_agents, n_params, 1])
 
   if memory_profile == "constant":
     memory_weights = np.array([constant(x) for x in range(1, len_memory + 1)])
+
 
   if memory_profile == "linear":
     memory_weights = np.array([linear(x) for x in range(1, len_memory + 1)])
@@ -332,6 +336,7 @@ def step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_pro
     memory_weights = np.array([exponential(x, b) for x in range(1, len_memory + 1)])
     # scaling values between 0 and 1
     memory_weights = memory_weights / max(memory_weights)
+
 
   if memory_profile == "fractional_v1":
     memory_weights = np.array([fractional_v1(x, _lambda) for x in range(1, len_memory + 1)])
@@ -346,28 +351,19 @@ def step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_pro
     memory_weights = memory_weights / max(memory_weights)
 
 
-  z_c = np.zeros([n_agents, n_params, 1])
+
   z_g = np.zeros([n_agents, n_params, 1])
 
 
   for agent_i in range(n_agents):
     for param_i in range(n_params):           
         
-      z_c[agent_i][param_i][0] = (1/len_memory) * sum([ memory_weights[memory_i] * consensus_memory[agent_i][param_i][memory_i] for memory_i in range(len_memory)])
-      z_g[agent_i][param_i][0] = (1/len_memory) * sum([ memory_weights[memory_i] * gradient_memory[agent_i][param_i][memory_i] for memory_i in range(len_memory)])
+      if scaled_memory:
+        z_g[agent_i][param_i][0] = (1/len_memory) * sum([ memory_weights[memory_i] * gradient_memory[agent_i][param_i][memory_i] for memory_i in range(len_memory)])
 
+      if scaled_memory == False:
+        z_g[agent_i][param_i][0] = sum([ memory_weights[memory_i] * gradient_memory[agent_i][param_i][memory_i] for memory_i in range(len_memory)])
 
-  for agent_i in range(n_agents):
-    for param_i in range(n_params):           
-        
-        # consensus_memoryFeedback[agent_i][param_i][0] = sum([ memory_weights[memory_i] * consensus_memory[agent_i][param_i][memory_i] for memory_i in range(len_memory)])
-        # gradient_memoryFeedback[agent_i][param_i][0] = sum([ memory_weights[memory_i] * gradient_memory[agent_i][param_i][memory_i] for memory_i in range(len_memory)])
-
-        consensus_memoryFeedback[agent_i][param_i][0] = sum( [ (z_c[agent_j][param_i][0] - z_c[agent_i][param_i][0]) for agent_j in range(n_agents) if agent_j!= agent_i ] )
-        gradient_memoryFeedback[agent_i][param_i][0] = z_g[agent_i][param_i][0]
-
-
-  
 
 
   # ================================================================
@@ -385,14 +381,11 @@ def step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_pro
     for param_i in range(n_params):
         x[agent_i][param_i][0] =  x[agent_i][param_i][0] \
                                     + beta_c * consesus_term[agent_i][param_i][0] \
-                                    + beta_cm * consensus_memoryFeedback[agent_i][param_i][0] \
                                     - beta_g * gradient_term[agent_i][param_i][0] \
-                                    - beta_gm * gradient_memoryFeedback[agent_i][param_i][0]
+                                    - beta_gm * z_g[agent_i][param_i][0]
         
         # updating consensus mamory and gradient based on this iteration's sonsensus term and gradient descent term
-        consensus_memory[agent_i][param_i][:-1] = consensus_memory[agent_i][param_i][1:]
-        consensus_memory[agent_i][param_i][-1] = consesus_term[agent_i][param_i][0]
-    
+
         gradient_memory[agent_i][param_i][:-1] = gradient_memory[agent_i][param_i][1:]
         gradient_memory[agent_i][param_i][-1] = gradient_term[agent_i][param_i][0]
 
@@ -508,7 +501,7 @@ def step_projected(x, consensus_memory, gradient_memory, fs_private, beta_c = 0.
 
 
 
-def optimize_IllDefinedHessian( stopping_condition : float = 0.002, max_iterations : int = 1000, memory_profiles : list = ["exponential"], bs : list= [2], _lambdas: list = [2.5], lens_memory: list= [10], betas_c: list = [0.2], betas_cm: list = [0.04], betas_g: list = [0.6], betas_gm: list = [0.36], betas_pg: list = [0.36] ):
+def optimize_IllDefinedHessian( stopping_condition : float = 0.002, max_iterations : int = 1000, scaled_memory= False, memory_profiles : list = ["exponential"], bs : list= [2], _lambdas: list = [2.5], lens_memory: list= [10], betas_c: list = [0.2], betas_cm: list = [0.04], betas_g: list = [0.6], betas_gm: list = [0.36], betas_pg: list = [0.36] ):
   """
   Returns
   -------
@@ -690,7 +683,9 @@ def optimize_IllDefinedHessian( stopping_condition : float = 0.002, max_iteratio
 
                          # x_history.append(copy.deepcopy(x))
 
-                          x, consensus_memory, gradient_memory = step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_profile= memory_profile, b= b, len_memory= len_memory, beta_c = beta_c, beta_cm= beta_cm, beta_g= beta_g, beta_gm= beta_gm)
+                          
+
+                          x, consensus_memory, gradient_memory = step_withMemory(x, consensus_memory, gradient_memory, fs_private, scaled_memory= scaled_memory, memory_profile= memory_profile, b= b, len_memory= len_memory, beta_c = beta_c, beta_cm= beta_cm, beta_g= beta_g, beta_gm= beta_gm)
                           
                           x_inLast2Iterations[0] = copy.deepcopy(x_inLast2Iterations[1])
                           x_inLast2Iterations[1] = copy.deepcopy(x)
@@ -757,7 +752,7 @@ def optimize_IllDefinedHessian( stopping_condition : float = 0.002, max_iteratio
 
                                 break
 
-                          x, consensus_memory, gradient_memory = step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_profile= memory_profile, _lambda= _lambda, len_memory= len_memory, beta_c = beta_c, beta_cm= beta_cm, beta_g= beta_g, beta_gm= beta_gm)
+                          x, consensus_memory, gradient_memory = step_withMemory(x, consensus_memory, gradient_memory, fs_private, scaled_memory= scaled_memory, memory_profile= memory_profile, _lambda= _lambda, len_memory= len_memory, beta_c = beta_c, beta_cm= beta_cm, beta_g= beta_g, beta_gm= beta_gm)
                           
                           x_inLast2Iterations[0] = copy.deepcopy(x_inLast2Iterations[1])
                           x_inLast2Iterations[1] = copy.deepcopy(x)
@@ -818,7 +813,9 @@ def optimize_IllDefinedHessian( stopping_condition : float = 0.002, max_iteratio
 
                               break
 
-                        x, consensus_memory, gradient_memory = step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_profile= memory_profile, len_memory= len_memory, beta_c = beta_c, beta_cm= beta_cm, beta_g= beta_g, beta_gm= beta_gm)
+
+
+                        x, consensus_memory, gradient_memory = step_withMemory(x, consensus_memory, gradient_memory, fs_private, scaled_memory= scaled_memory, memory_profile= memory_profile, len_memory= len_memory, beta_c = beta_c, beta_cm= beta_cm, beta_g= beta_g, beta_gm= beta_gm)
                         
                         x_inLast2Iterations[0] = copy.deepcopy(x_inLast2Iterations[1])
                         x_inLast2Iterations[1] = copy.deepcopy(x)
@@ -841,7 +838,7 @@ def optimize_IllDefinedHessian( stopping_condition : float = 0.002, max_iteratio
 
 
 
-def optimize_Rosenbrock( initial_condition= (np.random.uniform(0, 2), np.random.uniform(0, 2)), stopping_condition : float = 0.002, max_iterations : int = 1000, memory_profiles : list = ["exponential"], bs : list= [2], _lambdas: list = [2.5], lens_memory: list= [10], betas_c: list = [0.2], betas_cm: list = [0.04], betas_g: list = [0.6], betas_gm: list = [0.36], betas_pg: list = [0.36] ):
+def optimize_Rosenbrock( initial_condition= (np.random.uniform(0, 2), np.random.uniform(0, 2)), stopping_condition : float = 0.002, max_iterations : int = 1000, scaled_memory= False, memory_profiles : list = ["exponential"], bs : list= [2], _lambdas: list = [2.5], lens_memory: list= [10], betas_c: list = [0.2], betas_cm: list = [0.04], betas_g: list = [0.6], betas_gm: list = [0.36], betas_pg: list = [0.36] ):
   """
 
   Differences from the initial setup for testing sensitivity to initial conditions:
@@ -1010,7 +1007,7 @@ def optimize_Rosenbrock( initial_condition= (np.random.uniform(0, 2), np.random.
 
                         x_history.append(copy.deepcopy(x))
 
-                        x, consensus_memory, gradient_memory = step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_profile= memory_profile, b= b, len_memory= len_memory, beta_c = beta_c, beta_cm= beta_cm, beta_g= beta_g, beta_gm= beta_gm)
+                        x, consensus_memory, gradient_memory = step_withMemory(x, consensus_memory, gradient_memory, fs_private, scaled_memory= scaled_memory, memory_profile= memory_profile, b= b, len_memory= len_memory, beta_c = beta_c, beta_cm= beta_cm, beta_g= beta_g, beta_gm= beta_gm)
                         
                         x_inLast2Iterations[0] = copy.deepcopy(x_inLast2Iterations[1])
                         x_inLast2Iterations[1] = copy.deepcopy(x)
@@ -1067,7 +1064,7 @@ def optimize_Rosenbrock( initial_condition= (np.random.uniform(0, 2), np.random.
                         
                         x_history.append(copy.deepcopy(x))
 
-                        x, consensus_memory, gradient_memory = step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_profile= memory_profile, _lambda= _lambda, len_memory= len_memory, beta_c = beta_c, beta_cm= beta_cm, beta_g= beta_g, beta_gm= beta_gm)
+                        x, consensus_memory, gradient_memory = step_withMemory(x, consensus_memory, gradient_memory, fs_private, scaled_memory= scaled_memory, memory_profile= memory_profile, _lambda= _lambda, len_memory= len_memory, beta_c = beta_c, beta_cm= beta_cm, beta_g= beta_g, beta_gm= beta_gm)
                         
                         x_inLast2Iterations[0] = copy.deepcopy(x_inLast2Iterations[1])
                         x_inLast2Iterations[1] = copy.deepcopy(x)
@@ -1123,7 +1120,7 @@ def optimize_Rosenbrock( initial_condition= (np.random.uniform(0, 2), np.random.
 
                       print("x during optimization", x)
 
-                      x, consensus_memory, gradient_memory = step_withMemory(x, consensus_memory, gradient_memory, fs_private, memory_profile= memory_profile, len_memory= len_memory, beta_c = beta_c, beta_cm= beta_cm, beta_g= beta_g, beta_gm= beta_gm)
+                      x, consensus_memory, gradient_memory = step_withMemory(x, consensus_memory, gradient_memory, fs_private, scaled_memory= scaled_memory, memory_profile= memory_profile, len_memory= len_memory, beta_c = beta_c, beta_cm= beta_cm, beta_g= beta_g, beta_gm= beta_gm)
                       
                       x_inLast2Iterations[0] = copy.deepcopy(x_inLast2Iterations[1])
                       x_inLast2Iterations[1] = copy.deepcopy(x)
