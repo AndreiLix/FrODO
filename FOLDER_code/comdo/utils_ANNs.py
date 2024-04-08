@@ -135,7 +135,7 @@ def fractional_v2(x, len_memory, _lambda= 0.15):
 
 class DOptimizer():
 
-    def __init__(self, models, len_memory= 100, _lambda= 0.15, beta_c = 0.2, beta_cm= 0.04, beta_g= 0.6, beta_gm= 0.36):
+    def __init__(self, models, len_memory= 100, _lambda= 0.15, beta_c = 1, beta_cm= 0.04, beta_g= 0.6, beta_gm= 0.36):
         
         """
         Parameters:
@@ -251,7 +251,7 @@ class DOptimizer():
 
                 gradient_term[agent_i][layer_i] = grads_list[agent_i].layers[layer_i].weight 
 
-                consesus_term[agent_i][layer_i] = self.beta_c * sum( [ (x[agent_j].layers[layer_i].weight - x[agent_i].layers[layer_i].weight) for agent_j in range(n_agents) if agent_j!= agent_i ] )
+                consesus_term[agent_i][layer_i] = sum( [ (x[agent_j].layers[layer_i].weight - x[agent_i].layers[layer_i].weight) for agent_j in range(n_agents) if agent_j!= agent_i ] )
 
                 aux_tensor = np.array([ memory_weights[memory_i] * self.gradient_memory[agent_i][memory_i][layer_i] for memory_i in range(self.len_memory)])
 
@@ -260,22 +260,41 @@ class DOptimizer():
                 self.z_g[agent_i][layer_i] = np.sum(aux_tensor, axis= 0)  # summing over the memory axis
 
 
-        for agent_i in range(n_agents):
-            for layer_i in self.idx_layersWithWeights:
+        if len(self.gradient_memory[0]) > 1:
+            for agent_i in range(n_agents):
+                for layer_i in self.idx_layersWithWeights:
 
-                aux_update =  x[agent_i].layers[layer_i].weight \
-                                + self.beta_c * consesus_term[agent_i][layer_i] \
-                                - self.beta_g * gradient_term[agent_i][layer_i] \
-                                - self.beta_gm * self.z_g[agent_i][layer_i]
-    
-                where = lambda m: m[agent_i].layers[layer_i].weight
-                x = eqx.tree_at(where, x, aux_update)
+                    aux_update =  x[agent_i].layers[layer_i].weight \
+                                    + self.beta_c * consesus_term[agent_i][layer_i] \
+                                    - self.beta_g * gradient_term[agent_i][layer_i] \
+                                    - self.beta_gm * self.z_g[agent_i][layer_i]
+        
+                    where = lambda m: m[agent_i].layers[layer_i].weight
+                    x = eqx.tree_at(where, x, aux_update)
 
 
-                # updating consensus mamory and gradient based on this iteration's sonsensus term and gradient descent term
+                    # updating consensus mamory and gradient based on this iteration's sonsensus term and gradient descent term
+                    self.gradient_memory[agent_i][:-1][layer_i] = self.gradient_memory[agent_i][1:][layer_i]
+                    self.gradient_memory[agent_i][-1][layer_i] = gradient_term[agent_i][layer_i]
+      
+        if len(self.gradient_memory[0]) == 1: # if memory == 1, we have special case of updates
 
-                self.gradient_memory[agent_i][:-1][layer_i] = self.gradient_memory[agent_i][1:][layer_i]
-                self.gradient_memory[agent_i][-1][layer_i] = gradient_term[agent_i][layer_i]
+            for agent_i in range(n_agents):
+                for layer_i in self.idx_layersWithWeights:
+
+                    aux_update =  x[agent_i].layers[layer_i].weight \
+                                    + self.beta_c * consesus_term[agent_i][layer_i] \
+                                    - self.beta_g * gradient_term[agent_i][layer_i] \
+                                    - self.beta_gm * self.z_g[agent_i][layer_i]
+        
+                    where = lambda m: m[agent_i].layers[layer_i].weight
+                    x = eqx.tree_at(where, x, aux_update)
+
+
+                    # updating consensus mamory and gradient based on this iteration's sonsensus term and gradient descent term
+                    # self.gradient_memory[agent_i][:-1][layer_i] = self.gradient_memory[agent_i][1:][layer_i]
+                    self.gradient_memory[agent_i][-1][layer_i] = gradient_term[agent_i][layer_i]
+
 
         # ================================================================
 

@@ -265,7 +265,7 @@ def fractional_v2(x, len_memory, _lambda= 0.15):
     return fract
 
 
-def step_withMemory(x, consensus_memory, gradient_memory, fs_private, scaled_memory= False, memory_profile= "exponential", b= 3, _lambda= 0.15, len_memory= 10, beta_c = 0.2, beta_cm= 0.04, beta_g= 0.6, beta_gm= 0.36):
+def step_withMemory(x, consensus_memory, gradient_memory, fs_private, scaled_memory= False, memory_profile= "exponential", b= 3, _lambda= 0.15, len_memory= 10, beta_c = 1, beta_cm= 0.04, beta_g= 0.6, beta_gm= 0.36):
   """
   Like step_sequential, but works with different memory profiles + more hyperparameter flexibility.
 
@@ -317,7 +317,7 @@ def step_withMemory(x, consensus_memory, gradient_memory, fs_private, scaled_mem
 
   for agent_i in range(n_agents):
     for param_i in range(n_params):
-      consesus_term[agent_i][param_i][0] = beta_c * sum( [ (x[agent_j][param_i][0] - x[agent_i][param_i][0]) for agent_j in range(n_agents) if agent_j!= agent_i ] )
+      consesus_term[agent_i][param_i][0] = sum( [ (x[agent_j][param_i][0] - x[agent_i][param_i][0]) for agent_j in range(n_agents) if agent_j!= agent_i ] )
   
   for agent_i in range(n_agents):
       gradient_term[agent_i] = get_gradientVector_Autograd(fs_private[agent_i], x[agent_i])
@@ -395,7 +395,7 @@ def step_withMemory(x, consensus_memory, gradient_memory, fs_private, scaled_mem
 
 
 
-def step_projected(x, consensus_memory, gradient_memory, fs_private, beta_c = 0.2, beta_g= 0.6, beta_pg= 0.36):
+def step_projected(x, consensus_memory, gradient_memory, fs_private, beta_c = 1, beta_g= 0.6, beta_pg= 0.36):
   """
   Optimization algorithm using projected gradients (forward and backward).
     
@@ -446,7 +446,7 @@ def step_projected(x, consensus_memory, gradient_memory, fs_private, beta_c = 0.
 
   for agent_i in range(n_agents):
     for param_i in range(n_params):
-      consesus_term[agent_i][param_i][0] = beta_c * sum( [ (x[agent_j][param_i][0] - x[agent_i][param_i][0]) for agent_j in range(n_agents) if agent_j!= agent_i ] )
+      consesus_term[agent_i][param_i][0] = sum( [ (x[agent_j][param_i][0] - x[agent_i][param_i][0]) for agent_j in range(n_agents) if agent_j!= agent_i ] )
   
   for agent_i in range(n_agents):
       gradient_term[agent_i] = get_gradientVector_Autograd(fs_private[agent_i], x[agent_i])
@@ -1092,7 +1092,6 @@ def optimize_Rosenbrock( initial_condition= (np.random.uniform(0, 2), np.random.
                                       )]
                 x = [x1, x2]
 
-                print("x before optimization", x)
 
                 x_inLast2Iterations = [copy.deepcopy(x), copy.deepcopy(x)]
                 n_agents = len(fs_private)
@@ -1118,7 +1117,6 @@ def optimize_Rosenbrock( initial_condition= (np.random.uniform(0, 2), np.random.
 
                       x_history.append(copy.deepcopy(x))
 
-                      print("x during optimization", x)
 
                       x, consensus_memory, gradient_memory = step_withMemory(x, consensus_memory, gradient_memory, fs_private, scaled_memory= scaled_memory, memory_profile= memory_profile, len_memory= len_memory, beta_c = beta_c, beta_cm= beta_cm, beta_g= beta_g, beta_gm= beta_gm)
                       
