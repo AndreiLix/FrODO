@@ -152,7 +152,8 @@ class DOptimizer():
 
         self.beta_c : flaot
             Weight of the consensud terms.
-                Default beta_c = beta_g
+                Default beta_c = 1. Equivalent to consensus jump.
+                    Consensus jump means each agent jumps in the middle of its neighbors for the consensus step.
 
         self.beta_g : float
             Weight of the private gradient descent term.
