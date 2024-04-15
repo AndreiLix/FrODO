@@ -5,14 +5,12 @@ import copy
 
 """
 
-utils_v3:
-Module containing helper functions for COMDO.
+utils_proper:
+Same as utils, but with deepcopies instead of aliases for agent states. 
+  Before this, I was uncounsciously doing centralized optimization.
 
-Updates since v2_utils.py:
-- get_gradientVector_Autograd() now stores partial derivatives as float64 instead of int
-  - this results in step_sequential() losing the chatter and converges in half the iterations of step_parallel (10 instead of 20 for the baseline simulation)
-  - both step variants achieve convergence precision to the 6th decimal.
 
+  
 NOTE:
 - the states of every agent must be arrays containing only type float
 
@@ -315,14 +313,6 @@ def step_withMemory(x, consensus_memory, gradient_memory, fs_private, scaled_mem
   gradient_term = np.zeros([n_agents, n_params,1])
 
 
-  for agent_i in range(n_agents):
-    for param_i in range(n_params):
-      consesus_term[agent_i][param_i][0] = sum( [ (x[agent_j][param_i][0] - x[agent_i][param_i][0]) for agent_j in range(n_agents) if agent_j!= agent_i ] )
-  
-  for agent_i in range(n_agents):
-      gradient_term[agent_i] = get_gradientVector_Autograd(fs_private[agent_i], x[agent_i])
-
-
   if memory_profile == "constant":
     memory_weights = np.array([constant(x) for x in range(1, len_memory + 1)])
 
@@ -351,15 +341,18 @@ def step_withMemory(x, consensus_memory, gradient_memory, fs_private, scaled_mem
     memory_weights = memory_weights / max(memory_weights)
 
 
-
   z_g = np.zeros([n_agents, n_params, 1])
 
-
   for agent_i in range(n_agents):
-    for param_i in range(n_params):           
-        
+
+    gradient_term[agent_i] = get_gradientVector_Autograd(fs_private[agent_i], x[agent_i])
+    for param_i in range(n_params):
+
+      consesus_term[agent_i][param_i][0] = (1/n_agents) * sum( [ (x[agent_j][param_i][0] - x[agent_i][param_i][0]) for agent_j in range(n_agents) if agent_j!= agent_i ] )
+      # print(f"consensus term agent {agent_i}, param {param_i}: {consesus_term[agent_i][param_i][0]}")
+
       if scaled_memory:
-        z_g[agent_i][param_i][0] = (1/len_memory) * sum([ memory_weights[memory_i] * gradient_memory[agent_i][param_i][memory_i] for memory_i in range(len_memory)])
+        z_g[agent_i][param_i][0] = sum([ memory_weights[memory_i] * gradient_memory[agent_i][param_i][memory_i] for memory_i in range(len_memory)])
 
       if scaled_memory == False:
         z_g[agent_i][param_i][0] = sum([ memory_weights[memory_i] * gradient_memory[agent_i][param_i][memory_i] for memory_i in range(len_memory)])
@@ -377,9 +370,14 @@ def step_withMemory(x, consensus_memory, gradient_memory, fs_private, scaled_mem
 
   # NOTE: all terms in update must be shape (n_agents, n_params, 1)
 
+
   for agent_i in range(n_agents):
     for param_i in range(n_params):
-        x[agent_i][param_i][0] =  x[agent_i][param_i][0] \
+
+        print(f"consensus term agent {agent_i}, param {param_i}: {consesus_term[agent_i][param_i][0]}")
+        print(f"gradient term agent {agent_i}, param {param_i}: {gradient_term[agent_i][param_i][0]}")
+
+        x[agent_i][param_i][0] = x[agent_i][param_i][0] \
                                     + beta_c * consesus_term[agent_i][param_i][0] \
                                     - beta_g * gradient_term[agent_i][param_i][0] \
                                     - beta_gm * z_g[agent_i][param_i][0]
@@ -534,6 +532,8 @@ def optimize_IllDefinedHessian( stopping_condition : float = 0.002, max_iteratio
 
   initial_conditions = ( (1., 0.), (0.86, 0.5), (0.5, 0.86), (0., 1.) )
 
+  x_history = []
+
   for initial_condition in initial_conditions:
 
 
@@ -565,10 +565,22 @@ def optimize_IllDefinedHessian( stopping_condition : float = 0.002, max_iteratio
 
                     fs_private = [f1_ill, f2_ill, f3_ill, f4_ill]
                     # x_history = []
-                    x1, x2, x3, x4 = 4 * [np.array(
-                                              [ [initial_condition[0]] ,
-                                                    [initial_condition[1]] ]
-                                              )]
+                    x1 = copy.deepcopy(np.array(
+                          [ [initial_condition[0]] ,
+                            [initial_condition[1]] ]
+                          ))
+                    x2 = copy.deepcopy(np.array(
+                          [ [initial_condition[0]] ,
+                            [initial_condition[1]] ]
+                          ))
+                    x3 = copy.deepcopy(np.array(
+                          [ [initial_condition[0]] ,
+                            [initial_condition[1]] ]
+                          ))
+                    x4 = copy.deepcopy(np.array(
+                          [ [initial_condition[0]] ,
+                            [initial_condition[1]] ]
+                          ))
                     x = [x1, x2, x3, x4]
 
                     # initializing integral terms. 
@@ -584,6 +596,8 @@ def optimize_IllDefinedHessian( stopping_condition : float = 0.002, max_iteratio
                     gradient_memory = np.zeros([n_agents, n_params, len_memory])
 
                     for iteration in range(max_iterations):
+                          
+                          x_history.append(copy.deepcopy(x))
 
                           last_iteration = last_iteration + 1
                           # np array of shape = (len(x_inLast2Iterations) * n_agents * n_params, )
@@ -643,10 +657,22 @@ def optimize_IllDefinedHessian( stopping_condition : float = 0.002, max_iteratio
 
                     fs_private = [f1_ill, f2_ill, f3_ill, f4_ill]
                     # x_history = []
-                    x1, x2, x3, x4 = 4 * [np.array(
-                                              [ [initial_condition[0]] ,
-                                                    [initial_condition[1]] ]
-                                              )]
+                    x1 = copy.deepcopy(np.array(
+                          [ [initial_condition[0]] ,
+                            [initial_condition[1]] ]
+                          ))
+                    x2 = copy.deepcopy(np.array(
+                          [ [initial_condition[0]] ,
+                            [initial_condition[1]] ]
+                          ))
+                    x3 = copy.deepcopy(np.array(
+                          [ [initial_condition[0]] ,
+                            [initial_condition[1]] ]
+                          ))
+                    x4 = copy.deepcopy(np.array(
+                          [ [initial_condition[0]] ,
+                            [initial_condition[1]] ]
+                          ))
                     x = [x1, x2, x3, x4]
 
                     # initializing integral terms. 
@@ -724,10 +750,22 @@ def optimize_IllDefinedHessian( stopping_condition : float = 0.002, max_iteratio
 
                     fs_private = [f1_ill, f2_ill, f3_ill, f4_ill]
                     # x_history = []
-                    x1, x2, x3, x4 = 4 * [np.array(
-                                              [ [initial_condition[0]] ,
-                                                    [initial_condition[1]] ]
-                                              )]
+                    x1 = copy.deepcopy(np.array(
+                          [ [initial_condition[0]] ,
+                            [initial_condition[1]] ]
+                          ))
+                    x2 = copy.deepcopy(np.array(
+                          [ [initial_condition[0]] ,
+                            [initial_condition[1]] ]
+                          ))
+                    x3 = copy.deepcopy(np.array(
+                          [ [initial_condition[0]] ,
+                            [initial_condition[1]] ]
+                          ))
+                    x4 = copy.deepcopy(np.array(
+                          [ [initial_condition[0]] ,
+                            [initial_condition[1]] ]
+                          ))
                     x = [x1, x2, x3, x4]
 
                     x_inLast2Iterations = [copy.deepcopy(x), copy.deepcopy(x)]
@@ -737,6 +775,10 @@ def optimize_IllDefinedHessian( stopping_condition : float = 0.002, max_iteratio
                     gradient_memory = np.zeros([n_agents, n_params, len_memory])
 
                     for iteration in range(max_iterations):
+                          
+                          x_history.append(copy.deepcopy(x))
+                          print("x at iteration ", iteration, ":")
+                          print(x)
 
                           last_iteration = last_iteration + 1
                           # np array of shape = (len(x_inLast2Iterations) * n_agents * n_params, )
@@ -747,7 +789,7 @@ def optimize_IllDefinedHessian( stopping_condition : float = 0.002, max_iteratio
                                 
                                # x_history.append(x)
                                 # performance_dict[(initial_condition, memory_profile , b, _lambda, len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = {"n_iterationsUntilConvergence": iteration , "last_x": x, "x_history": np.array(x_history)} 
-                                performance_dict[(initial_condition, memory_profile, _lambda , len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = iteration
+                                performance_dict[(initial_condition, memory_profile, _lambda , len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = iteration, x_history
 
 
                                 break
@@ -759,7 +801,7 @@ def optimize_IllDefinedHessian( stopping_condition : float = 0.002, max_iteratio
 
                           # print(x)
 
-                    performance_dict[(initial_condition, memory_profile, _lambda , len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = iteration
+                    performance_dict[(initial_condition, memory_profile, _lambda , len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = iteration, x_history
                     
 
     for memory_profile in memory_profiles:
@@ -785,10 +827,22 @@ def optimize_IllDefinedHessian( stopping_condition : float = 0.002, max_iteratio
 
                   fs_private = [f1_ill, f2_ill, f3_ill, f4_ill]
                   # x_history = []
-                  x1, x2, x3, x4 = 4 * [np.array(
-                                            [ [initial_condition[0]] ,
-                                                  [initial_condition[1]] ]
-                                            )]
+                  x1 = copy.deepcopy(np.array(
+                        [ [initial_condition[0]] ,
+                          [initial_condition[1]] ]
+                        ))
+                  x2 = copy.deepcopy(np.array(
+                        [ [initial_condition[0]] ,
+                          [initial_condition[1]] ]
+                        ))
+                  x3 = copy.deepcopy(np.array(
+                        [ [initial_condition[0]] ,
+                          [initial_condition[1]] ]
+                        ))
+                  x4 = copy.deepcopy(np.array(
+                        [ [initial_condition[0]] ,
+                          [initial_condition[1]] ]
+                        ))
                   x = [x1, x2, x3, x4]
 
                   x_inLast2Iterations = [copy.deepcopy(x), copy.deepcopy(x)]
@@ -798,6 +852,11 @@ def optimize_IllDefinedHessian( stopping_condition : float = 0.002, max_iteratio
                   gradient_memory = np.zeros([n_agents, n_params, len_memory])
 
                   for iteration in range(max_iterations):
+                        
+                        x_history.append(copy.deepcopy(x))
+                        print("x at iteration ", iteration, ":")
+                        print(x)
+
 
                         last_iteration = last_iteration + 1
                         # np array of shape = (len(x_inLast2Iterations) * n_agents * n_params, )
@@ -808,21 +867,18 @@ def optimize_IllDefinedHessian( stopping_condition : float = 0.002, max_iteratio
                               
                               # x_history.append(x)
                               # performance_dict[(initial_condition, memory_profile , b, _lambda, len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = {"n_iterationsUntilConvergence": iteration , "last_x": x, "x_history": np.array(x_history)} 
-                              performance_dict[(initial_condition, memory_profile, len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = iteration
-
+                              performance_dict[(initial_condition, memory_profile, len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = iteration, x_history
 
                               break
 
-
-
-                        x, consensus_memory, gradient_memory = step_withMemory(x, consensus_memory, gradient_memory, fs_private, scaled_memory= scaled_memory, memory_profile= memory_profile, len_memory= len_memory, beta_c = beta_c, beta_cm= beta_cm, beta_g= beta_g, beta_gm= beta_gm)
+                        x, consensus_memory, gradient_memory = step_withMemory(copy.deepcopy(x), consensus_memory, gradient_memory, fs_private, scaled_memory= scaled_memory, memory_profile= memory_profile, len_memory= len_memory, beta_c = beta_c, beta_cm= beta_cm, beta_g= beta_g, beta_gm= beta_gm)
                         
                         x_inLast2Iterations[0] = copy.deepcopy(x_inLast2Iterations[1])
                         x_inLast2Iterations[1] = copy.deepcopy(x)
 
                         # print(x)
 
-                  performance_dict[(initial_condition, memory_profile, len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = iteration
+                  performance_dict[(initial_condition, memory_profile, len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = iteration, x_history
 
 
   return performance_dict
@@ -906,10 +962,17 @@ def optimize_Rosenbrock( initial_condition= (np.random.uniform(0, 2), np.random.
 
                   fs_private = [f1, f2]
                   x_history = []
-                  x1, x2 = 2 * [np.array(
-                                        [ [initial_condition[0]] ,
-                                          [initial_condition[1]] ]
-                                        )]
+
+                  x1 = copy.deepcopy(np.array(
+                      [ [initial_condition[0]] ,
+                        [initial_condition[1]] ]
+                      ))
+                                        
+                  x2 = copy.deepcopy(np.array(
+                      [ [initial_condition[0]] ,
+                        [initial_condition[1]] ]
+                      ))
+                  
                   x = [x1, x2]
 
                   # initializing integral terms. 
@@ -973,10 +1036,17 @@ def optimize_Rosenbrock( initial_condition= (np.random.uniform(0, 2), np.random.
 
                   fs_private = [f1, f2]
                   x_history = []
-                  x1, x2 = 2 * [np.array(
-                                        [ [initial_condition[0]] ,
-                                          [initial_condition[1]] ]
-                                        )]
+
+                  x1 = copy.deepcopy(np.array(
+                      [ [initial_condition[0]] ,
+                        [initial_condition[1]] ]
+                      ))
+                                        
+                  x2 = copy.deepcopy(np.array(
+                      [ [initial_condition[0]] ,
+                        [initial_condition[1]] ]
+                      ))
+                  
                   x = [x1, x2]
 
                   x_inLast2Iterations = [copy.deepcopy(x), copy.deepcopy(x)]
@@ -1035,10 +1105,17 @@ def optimize_Rosenbrock( initial_condition= (np.random.uniform(0, 2), np.random.
 
                   fs_private = [f1, f2]
                   x_history = []
-                  x1, x2 = 2 * [np.array(
-                                        [ [initial_condition[0]] ,
-                                          [initial_condition[1]] ]
-                                        )]
+
+                  x1 = copy.deepcopy(np.array(
+                      [ [initial_condition[0]] ,
+                        [initial_condition[1]] ]
+                      ))
+                                        
+                  x2 = copy.deepcopy(np.array(
+                      [ [initial_condition[0]] ,
+                        [initial_condition[1]] ]
+                      ))
+                  
                   x = [x1, x2]
                   
                   # print("type x1, x2, x: ", type(x1), type(x2), type(x))
@@ -1097,10 +1174,17 @@ def optimize_Rosenbrock( initial_condition= (np.random.uniform(0, 2), np.random.
 
                 fs_private = [f1, f2]
                 x_history = []
-                x1, x2 = 2 * [np.array(
-                                      [ [initial_condition[0]] ,
-                                        [initial_condition[1]] ]
-                                      )]
+
+                x1 = copy.deepcopy(np.array(
+                    [ [initial_condition[0]] ,
+                      [initial_condition[1]] ]
+                    ))
+                                      
+                x2 = copy.deepcopy(np.array(
+                    [ [initial_condition[0]] ,
+                      [initial_condition[1]] ]
+                    ))
+                
                 x = [x1, x2]
 
 
