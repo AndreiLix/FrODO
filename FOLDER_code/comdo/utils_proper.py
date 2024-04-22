@@ -10,7 +10,6 @@ Same as utils, but with deepcopies instead of aliases for agent states.
   Before this, I was uncounsciously doing centralized optimization.
 
 
-  
 NOTE:
 - the states of every agent must be arrays containing only type float
 
@@ -309,7 +308,7 @@ def step_withMemory(x, consensus_memory, gradient_memory, fs_private, scaled_mem
 
   # computing the terms used for the updates in this iteration
 
-  consesus_term = np.zeros([n_agents, n_params,1])
+  # consesus_term = np.zeros([n_agents, n_params,1])
   gradient_term = np.zeros([n_agents, n_params,1])
 
 
@@ -348,7 +347,7 @@ def step_withMemory(x, consensus_memory, gradient_memory, fs_private, scaled_mem
     gradient_term[agent_i] = get_gradientVector_Autograd(fs_private[agent_i], x[agent_i])
     for param_i in range(n_params):
 
-      consesus_term[agent_i][param_i][0] = (1/n_agents) * sum( [ (x[agent_j][param_i][0] - x[agent_i][param_i][0]) for agent_j in range(n_agents) if agent_j!= agent_i ] )
+      # consesus_term[agent_i][param_i][0] = (1/(n_agents-1)) * sum( [ (x[agent_j][param_i][0] - x[agent_i][param_i][0]) for agent_j in range(n_agents) if agent_j!= agent_i ] )
       # print(f"consensus term agent {agent_i}, param {param_i}: {consesus_term[agent_i][param_i][0]}")
 
       if scaled_memory:
@@ -362,33 +361,70 @@ def step_withMemory(x, consensus_memory, gradient_memory, fs_private, scaled_mem
   # ================================================================
 
 
-  #---------------------------- second stage --------------------------------------
+  # #---------------------------- second stage --------------------------------------
 
-  # updating x, consensus_memory and gradient_memory
-
-
-
-  # NOTE: all terms in update must be shape (n_agents, n_params, 1)
+  # # updating x, consensus_memory and gradient_memory
 
 
+
+  # # NOTE: all terms in update must be shape (n_agents, n_params, 1)
+
+
+  # for agent_i in range(n_agents):
+  #   for param_i in range(n_params):
+
+  #       # print(f"consensus term agent {agent_i}, param {param_i}: {consesus_term[agent_i][param_i][0]}")
+  #       # print(f"gradient term agent {agent_i}, param {param_i}: {gradient_term[agent_i][param_i][0]}")
+
+  #       x[agent_i][param_i][0] = x[agent_i][param_i][0] \
+  #                                   + beta_c * consesus_term[agent_i][param_i][0] \
+  #                                   - beta_g * gradient_term[agent_i][param_i][0] \
+  #                                   - beta_gm * z_g[agent_i][param_i][0]
+        
+  #       # updating consensus mamory and gradient based on this iteration's sonsensus term and gradient descent term
+
+  #       gradient_memory[agent_i][param_i][:-1] = gradient_memory[agent_i][param_i][1:]
+  #       gradient_memory[agent_i][param_i][-1] = gradient_term[agent_i][param_i][0]
+
+
+  """
+  scheme I:
+
+  for agent:
+    do descent step
+  for agent:
+    do consensus step
+
+  scheme II:
+
+  for agent:
+    do descent step
+    do consensus step
+
+  """
+
+  # ________updates scheme I (preferred)________
+
+
+  # descent step
   for agent_i in range(n_agents):
     for param_i in range(n_params):
-
-        print(f"consensus term agent {agent_i}, param {param_i}: {consesus_term[agent_i][param_i][0]}")
-        print(f"gradient term agent {agent_i}, param {param_i}: {gradient_term[agent_i][param_i][0]}")
-
         x[agent_i][param_i][0] = x[agent_i][param_i][0] \
-                                    + beta_c * consesus_term[agent_i][param_i][0] \
                                     - beta_g * gradient_term[agent_i][param_i][0] \
                                     - beta_gm * z_g[agent_i][param_i][0]
-        
-        # updating consensus mamory and gradient based on this iteration's sonsensus term and gradient descent term
 
-        gradient_memory[agent_i][param_i][:-1] = gradient_memory[agent_i][param_i][1:]
-        gradient_memory[agent_i][param_i][-1] = gradient_term[agent_i][param_i][0]
+  # consensnus step (as in scheme II)   TODO: check if wrong
+  x_copy = np.copy(x)
+  for agent_i in range(n_agents):
+     x[agent_i] = np.copy(np.mean(x_copy, axis= 0))
 
+
+  gradient_memory[agent_i][param_i][:-1] = gradient_memory[agent_i][param_i][1:]
+  gradient_memory[agent_i][param_i][-1] = gradient_term[agent_i][param_i][0]
 
   return x, consensus_memory, gradient_memory
+
+
 
 
 
@@ -777,8 +813,8 @@ def optimize_IllDefinedHessian( stopping_condition : float = 0.002, max_iteratio
                     for iteration in range(max_iterations):
                           
                           x_history.append(copy.deepcopy(x))
-                          print("x at iteration ", iteration, ":")
-                          print(x)
+                          # print("x at iteration ", iteration, ":")
+                          # print(x)
 
                           last_iteration = last_iteration + 1
                           # np array of shape = (len(x_inLast2Iterations) * n_agents * n_params, )
@@ -789,8 +825,7 @@ def optimize_IllDefinedHessian( stopping_condition : float = 0.002, max_iteratio
                                 
                                # x_history.append(x)
                                 # performance_dict[(initial_condition, memory_profile , b, _lambda, len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = {"n_iterationsUntilConvergence": iteration , "last_x": x, "x_history": np.array(x_history)} 
-                                performance_dict[(initial_condition, memory_profile, _lambda , len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = iteration, x_history
-
+                                performance_dict[(initial_condition, memory_profile, _lambda , len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = iteration # , x_history
 
                                 break
 
@@ -801,7 +836,7 @@ def optimize_IllDefinedHessian( stopping_condition : float = 0.002, max_iteratio
 
                           # print(x)
 
-                    performance_dict[(initial_condition, memory_profile, _lambda , len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = iteration, x_history
+                    performance_dict[(initial_condition, memory_profile, _lambda , len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = iteration   # , x_history
                     
 
     for memory_profile in memory_profiles:
@@ -854,8 +889,8 @@ def optimize_IllDefinedHessian( stopping_condition : float = 0.002, max_iteratio
                   for iteration in range(max_iterations):
                         
                         x_history.append(copy.deepcopy(x))
-                        print("x at iteration ", iteration, ":")
-                        print(x)
+                        # print("x at iteration ", iteration, ":")
+                        # print(x)
 
 
                         last_iteration = last_iteration + 1
@@ -867,7 +902,7 @@ def optimize_IllDefinedHessian( stopping_condition : float = 0.002, max_iteratio
                               
                               # x_history.append(x)
                               # performance_dict[(initial_condition, memory_profile , b, _lambda, len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = {"n_iterationsUntilConvergence": iteration , "last_x": x, "x_history": np.array(x_history)} 
-                              performance_dict[(initial_condition, memory_profile, len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = iteration, x_history
+                              performance_dict[(initial_condition, memory_profile, len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = iteration  #, x_history
 
                               break
 
@@ -878,7 +913,7 @@ def optimize_IllDefinedHessian( stopping_condition : float = 0.002, max_iteratio
 
                         # print(x)
 
-                  performance_dict[(initial_condition, memory_profile, len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = iteration, x_history
+                  performance_dict[(initial_condition, memory_profile, len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = iteration  #, x_history
 
 
   return performance_dict
@@ -1414,7 +1449,7 @@ def plot_streamlined(alphas, betas, n_iterations= 100, step_version= "step_seque
     ax.legend()
     plt.show()
 
-    print("x in last iteration = [", history_agent1_parameter1[-1], history_agent1_parameter2[-1], "]")
+    # print("x in last iteration = [", history_agent1_parameter1[-1], history_agent1_parameter2[-1], "]")
 
             # ax.set_title("Memory updates")
             # ax.plot(range(len(history_agent1_memory1)), history_agent1_memory1, label= "$z_1^1$", color= "blue"  )
