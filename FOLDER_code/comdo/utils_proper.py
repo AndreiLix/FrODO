@@ -415,6 +415,7 @@ def step_withMemory(x, consensus_memory, gradient_memory, fs_private, scaled_mem
         #                             - beta_gm * z_g[agent_i][param_i][0]
 
         # This update generates the exact same results as initial multitask -> good
+          # TODO: find some justification / reasoning for it if supervisors advize
         x[agent_i][param_i][0] = x[agent_i][param_i][0] \
                                     - beta_g * n_agents * gradient_term[agent_i][param_i][0] \
                                     - beta_gm * n_agents * z_g[agent_i][param_i][0]
@@ -836,6 +837,16 @@ def optimize_IllDefinedHessian( stopping_condition : float = 0.002, max_iteratio
 
                                 break
 
+                          # if agents start with different states, we allign them before we start the optimization
+                          #   (bc of negative effects big consensus jumps would have on the long-term memory) 
+
+                          if iteration == 0:
+                            # consensnus step (as in scheme II)   TODO: check if wrong
+                            x_copy = np.copy(x)
+                            for agent_i in range(n_agents):
+                              x[agent_i] = np.copy(np.mean(x_copy, axis= 0))
+                          
+
                           x, consensus_memory, gradient_memory = step_withMemory(x, consensus_memory, gradient_memory, fs_private, scaled_memory= scaled_memory, memory_profile= memory_profile, _lambda= _lambda, len_memory= len_memory, beta_c = beta_c, beta_cm= beta_cm, beta_g= beta_g, beta_gm= beta_gm)
                           
                           x_inLast2Iterations[0] = copy.deepcopy(x_inLast2Iterations[1])
@@ -913,6 +924,17 @@ def optimize_IllDefinedHessian( stopping_condition : float = 0.002, max_iteratio
 
                               break
 
+
+                        # if agents start with different states, we allign them before we start the optimization
+                        #   (bc of negative effects big consensus jumps would have on the long-term memory) 
+
+                        if iteration == 0:
+                          # consensnus step (as in scheme II)   TODO: check if wrong
+                          x_copy = np.copy(x)
+                          for agent_i in range(n_agents):
+                            x[agent_i] = np.copy(np.mean(x_copy, axis= 0))
+
+
                         x, consensus_memory, gradient_memory = step_withMemory(copy.deepcopy(x), consensus_memory, gradient_memory, fs_private, scaled_memory= scaled_memory, memory_profile= memory_profile, len_memory= len_memory, beta_c = beta_c, beta_cm= beta_cm, beta_g= beta_g, beta_gm= beta_gm)
                         
                         x_inLast2Iterations[0] = copy.deepcopy(x_inLast2Iterations[1])
@@ -936,7 +958,7 @@ def optimize_IllDefinedHessian( stopping_condition : float = 0.002, max_iteratio
 
 
 
-def optimize_Rosenbrock( initial_condition= (np.random.uniform(0, 2), np.random.uniform(0, 2)), stopping_condition : float = 0.002, max_iterations : int = 1000, scaled_memory= False, memory_profiles : list = ["exponential"], bs : list= [2], _lambdas: list = [2.5], lens_memory: list= [10], betas_c: list = [0.2], betas_cm: list = [0.04], betas_g: list = [0.6], betas_gm: list = [0.36], betas_pg: list = [0.36] ):
+def optimize_Rosenbrock( initial_condition= ( (np.random.uniform(0, 2), np.random.uniform(0, 2)), (np.random.uniform(0, 2), np.random.uniform(0, 2)) ), stopping_condition : float = 0.002, max_iterations : int = 1000, scaled_memory= False, memory_profiles : list = ["exponential"], bs : list= [2], _lambdas: list = [2.5], lens_memory: list= [10], betas_c: list = [0.2], betas_cm: list = [0.04], betas_g: list = [0.6], betas_gm: list = [0.36], betas_pg: list = [0.36] ):
   """
 
   Differences from the initial setup for testing sensitivity to initial conditions:
@@ -1148,17 +1170,18 @@ def optimize_Rosenbrock( initial_condition= (np.random.uniform(0, 2), np.random.
                   fs_private = [f1, f2]
                   x_history = []
 
-                  x1 = copy.deepcopy(np.array(
-                      [ [initial_condition[0]] ,
-                        [initial_condition[1]] ]
-                      ))
-                                        
-                  x2 = copy.deepcopy(np.array(
-                      [ [initial_condition[0]] ,
-                        [initial_condition[1]] ]
-                      ))
+                  x1 = np.array(
+                                        [ [initial_condition[0][0]] ,
+                                          [initial_condition[0][1]] ]
+                                        )
                   
+                  x2 = np.array(
+                                        [ [initial_condition[1][0]] ,
+                                          [initial_condition[1][1]] ]
+                                        )
+
                   x = [x1, x2]
+
                   
                   # print("type x1, x2, x: ", type(x1), type(x2), type(x))
                   # print("type contents x1, x2: ", type(x1[0][0]), type(x1[1][0]), type(x2[0][0]), type(x2[1][0]))
@@ -1194,6 +1217,16 @@ def optimize_Rosenbrock( initial_condition= (np.random.uniform(0, 2), np.random.
                         
                         x_history.append(copy.deepcopy(x))
 
+                        # if agents start with different states, we allign them before we start the optimization
+                        #   (bc of negative effects big consensus jumps would have on the long-term memory) 
+
+                        if iteration == 0:
+                          # consensnus step (as in scheme II)   TODO: check if wrong
+                          x_copy = np.copy(x)
+                          for agent_i in range(n_agents):
+                            x[agent_i] = np.copy(np.mean(x_copy, axis= 0))
+
+
                         x, consensus_memory, gradient_memory = step_withMemory(x, consensus_memory, gradient_memory, fs_private, scaled_memory= scaled_memory, memory_profile= memory_profile, _lambda= _lambda, len_memory= len_memory, beta_c = beta_c, beta_cm= beta_cm, beta_g= beta_g, beta_gm= beta_gm)
                         
                         x_inLast2Iterations[0] = copy.deepcopy(x_inLast2Iterations[1])
@@ -1216,18 +1249,19 @@ def optimize_Rosenbrock( initial_condition= (np.random.uniform(0, 2), np.random.
 
                 fs_private = [f1, f2]
                 x_history = []
-
-                x1 = copy.deepcopy(np.array(
-                    [ [initial_condition[0]] ,
-                      [initial_condition[1]] ]
-                    ))
-                                      
-                x2 = copy.deepcopy(np.array(
-                    [ [initial_condition[0]] ,
-                      [initial_condition[1]] ]
-                    ))
+              
+                x1 = np.array(
+                                      [ [initial_condition[0][0]] ,
+                                        [initial_condition[0][1]] ]
+                                      )
                 
+                x2 = np.array(
+                                      [ [initial_condition[1][0]] ,
+                                        [initial_condition[1][1]] ]
+                                      )
+
                 x = [x1, x2]
+
 
 
                 x_inLast2Iterations = [copy.deepcopy(x), copy.deepcopy(x)]
@@ -1255,6 +1289,16 @@ def optimize_Rosenbrock( initial_condition= (np.random.uniform(0, 2), np.random.
                       x_history.append(copy.deepcopy(x))
 
 
+                      # if agents start with different states, we allign them before we start the optimization
+                      #   (bc of negative effects big consensus jumps would have on the long-term memory) 
+
+                      if iteration == 0:
+                        # consensnus step (as in scheme II)   TODO: check if wrong
+                        x_copy = np.copy(x)
+                        for agent_i in range(n_agents):
+                          x[agent_i] = np.copy(np.mean(x_copy, axis= 0))
+
+                          
                       x, consensus_memory, gradient_memory = step_withMemory(x, consensus_memory, gradient_memory, fs_private, scaled_memory= scaled_memory, memory_profile= memory_profile, len_memory= len_memory, beta_c = beta_c, beta_cm= beta_cm, beta_g= beta_g, beta_gm= beta_gm)
                       
                       x_inLast2Iterations[0] = copy.deepcopy(x_inLast2Iterations[1])

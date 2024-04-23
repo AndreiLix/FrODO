@@ -240,19 +240,22 @@ class DOptimizer():
 
         x = copy.deepcopy(models)
 
-        consesus_term = copy.deepcopy(self.z_g)
+        # consesus_term = copy.deepcopy(self.z_g)
         gradient_term = copy.deepcopy(self.z_g)
 
         memory_weights = np.array([fractional_v2(x, self.len_memory, self._lambda) for x in range(self.len_memory)])
         # scaling values between 0 and 1
         memory_weights = memory_weights / max(memory_weights)
 
+
+        # computing terms step
+
         for agent_i in range(n_agents):
             for layer_i in self.idx_layersWithWeights:
 
                 gradient_term[agent_i][layer_i] = grads_list[agent_i].layers[layer_i].weight 
 
-                consesus_term[agent_i][layer_i] = sum( [ (x[agent_j].layers[layer_i].weight - x[agent_i].layers[layer_i].weight) for agent_j in range(n_agents) if agent_j!= agent_i ] )
+                # consesus_term[agent_i][layer_i] = sum( [ (x[agent_j].layers[layer_i].weight - x[agent_i].layers[layer_i].weight) for agent_j in range(n_agents) if agent_j!= agent_i ] )
 
                 aux_tensor = np.array([ memory_weights[memory_i] * self.gradient_memory[agent_i][memory_i][layer_i] for memory_i in range(self.len_memory)])
 
@@ -261,14 +264,21 @@ class DOptimizer():
                 self.z_g[agent_i][layer_i] = np.sum(aux_tensor, axis= 0)  # summing over the memory axis
 
 
+        # descent step
+
         if len(self.gradient_memory[0]) > 1:
             for agent_i in range(n_agents):
                 for layer_i in self.idx_layersWithWeights:
 
+                    # aux_update =  x[agent_i].layers[layer_i].weight \
+                    #                 + self.beta_c * consesus_term[agent_i][layer_i] \
+                    #                 - self.beta_g * gradient_term[agent_i][layer_i] \
+                    #                 - self.beta_gm * self.z_g[agent_i][layer_i]
+        
                     aux_update =  x[agent_i].layers[layer_i].weight \
-                                    + self.beta_c * consesus_term[agent_i][layer_i] \
                                     - self.beta_g * gradient_term[agent_i][layer_i] \
                                     - self.beta_gm * self.z_g[agent_i][layer_i]
+
         
                     where = lambda m: m[agent_i].layers[layer_i].weight
                     x = eqx.tree_at(where, x, aux_update)
@@ -283,11 +293,16 @@ class DOptimizer():
             for agent_i in range(n_agents):
                 for layer_i in self.idx_layersWithWeights:
 
+                    # aux_update =  x[agent_i].layers[layer_i].weight \
+                    #                 + self.beta_c * consesus_term[agent_i][layer_i] \
+                    #                 - self.beta_g * gradient_term[agent_i][layer_i] \
+                    #                 - self.beta_gm * self.z_g[agent_i][layer_i]
+        
                     aux_update =  x[agent_i].layers[layer_i].weight \
-                                    + self.beta_c * consesus_term[agent_i][layer_i] \
                                     - self.beta_g * gradient_term[agent_i][layer_i] \
                                     - self.beta_gm * self.z_g[agent_i][layer_i]
-        
+
+
                     where = lambda m: m[agent_i].layers[layer_i].weight
                     x = eqx.tree_at(where, x, aux_update)
 
@@ -295,49 +310,15 @@ class DOptimizer():
                     # updating consensus mamory and gradient based on this iteration's sonsensus term and gradient descent term
                     # self.gradient_memory[agent_i][:-1][layer_i] = self.gradient_memory[agent_i][1:][layer_i]
                     self.gradient_memory[agent_i][-1][layer_i] = gradient_term[agent_i][layer_i]
+        
+        # consensus step
+        for layer_i in self.idx_layersWithWeights:
 
-
-        # ================================================================
-
-
-        #---------------------------- second stage --------------------------------------
-
-        # updating x, consensus_memory and gradient_memory
-
-
-
-        # NOTE: all terms in update must be shape (n_agents, n_params, 1)
-
-        # for agent_i in range(n_agents):
-        #     for layer_i in self.idx_layersWithWeights:
-
-        #         # print(f"Shape Agent for layer {layer_i}: ", np.shape(x[agent_i].layers[layer_i].weight))
-        #         # print(f"Shape consensus term for layer {layer_i}: ", np.shape(consesus_term[agent_i][layer_i]))
-        #         # print(f"Shape gradient term for layer {layer_i}: ", np.shape(gradient_term[agent_i][layer_i]))
-        #         # print(f"Shape z_g term for layer {layer_i}: ", np.shape(self.z_g[agent_i][layer_i]))
-
-
-
-        #         # x[agent_i].layers[layer_i].weight =  x[agent_i].layers[layer_i].weight \
-        #         #                             + self.beta_c * consesus_term[agent_i][layer_i] \
-        #         #                             - self.beta_g * gradient_term[agent_i][layer_i] \
-        #         #                             - self.beta_gm * self.z_g[agent_i][layer_i]
-                
-
-
-        #         aux_update =  x[agent_i].layers[layer_i].weight \
-        #                         + self.beta_c * consesus_term[agent_i][layer_i] \
-        #                         - self.beta_g * gradient_term[agent_i][layer_i] \
-        #                         - self.beta_gm * self.z_g[agent_i][layer_i]
-    
-        #         where = lambda m: m[agent_i].layers[layer_i].weight
-        #         x = eqx.tree_at(where, x, aux_update)
-
-
-        #         # updating consensus mamory and gradient based on this iteration's sonsensus term and gradient descent term
-
-        #         self.gradient_memory[agent_i][:-1][layer_i] = self.gradient_memory[agent_i][1:][layer_i]
-        #         self.gradient_memory[agent_i][-1][layer_i] = gradient_term[agent_i][layer_i]
+            aux_update = (1/self.n_agents) * sum( models[agent_j].layers[layer_i].weight for agent_j in range(self.n_agents) )
+            
+            for agent_i in range(self.n_agents):
+                where = lambda m: m[agent_i].layers[layer_i].weight
+                models = eqx.tree_at(where, models, aux_update)
 
 
         return x
