@@ -409,18 +409,25 @@ def step_withMemory(x, consensus_memory, gradient_memory, fs_private, scaled_mem
   # descent step
   for agent_i in range(n_agents):
     for param_i in range(n_params):
+
+        # x[agent_i][param_i][0] = x[agent_i][param_i][0] \
+        #                             - beta_g * gradient_term[agent_i][param_i][0] \
+        #                             - beta_gm * z_g[agent_i][param_i][0]
+
+        # This update generates the exact same results as initial multitask -> good
         x[agent_i][param_i][0] = x[agent_i][param_i][0] \
-                                    - beta_g * gradient_term[agent_i][param_i][0] \
-                                    - beta_gm * z_g[agent_i][param_i][0]
+                                    - beta_g * n_agents * gradient_term[agent_i][param_i][0] \
+                                    - beta_gm * n_agents * z_g[agent_i][param_i][0]
+
+
+
+        gradient_memory[agent_i][param_i][:-1] = gradient_memory[agent_i][param_i][1:]
+        gradient_memory[agent_i][param_i][-1] = gradient_term[agent_i][param_i][0]
 
   # consensnus step (as in scheme II)   TODO: check if wrong
   x_copy = np.copy(x)
   for agent_i in range(n_agents):
      x[agent_i] = np.copy(np.mean(x_copy, axis= 0))
-
-
-  gradient_memory[agent_i][param_i][:-1] = gradient_memory[agent_i][param_i][1:]
-  gradient_memory[agent_i][param_i][-1] = gradient_term[agent_i][param_i][0]
 
   return x, consensus_memory, gradient_memory
 
