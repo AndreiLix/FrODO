@@ -257,7 +257,8 @@ def fractional_v2(x, len_memory, _lambda= 0.15):
 
     from scipy.special import gamma
 
-    fract = ( 1 / gamma(_lambda) ) *  1 / ((len_memory-x) ** (1-_lambda))
+    # fract = ( 1 / gamma(_lambda) ) *  1 / ((len_memory-x) ** (1-_lambda))
+    fract = ( 1 / gamma(_lambda) ) * 1 / (x ** (1-_lambda))
 
     return fract
 
@@ -331,14 +332,15 @@ def step_withMemory(x, consensus_memory, gradient_memory, fs_private, scaled_mem
     memory_weights = np.array([fractional_v1(x, _lambda) for x in range(1, len_memory + 1)])
     # scaling values between 0 and 1
     memory_weights = memory_weights / max(memory_weights)
-    #reversing array (only for fractional_v1)
+    #reversing array
     memory_weights = np.flip(memory_weights)
 
   if memory_profile == "fractional_v2":
-    memory_weights = np.array([fractional_v2(x, len_memory, _lambda) for x in range(len_memory)])
+    memory_weights = np.array([fractional_v2(x, len_memory, _lambda) for x in range(1, len_memory+1)])
     # scaling values between 0 and 1
     memory_weights = memory_weights / max(memory_weights)
-
+    #reversing array (to adjust for the cleaner memory weight equation)
+    memory_weights = np.flip(memory_weights)
 
   z_g = np.zeros([n_agents, n_params, 1])
 
