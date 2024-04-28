@@ -419,8 +419,8 @@ def step_withMemory(x, consensus_memory, gradient_memory, fs_private, scaled_mem
         # This update generates the exact same results as initial multitask -> good
           # TODO: find some justification / reasoning for it if supervisors advize
         x[agent_i][param_i][0] = x[agent_i][param_i][0] \
-                                    - beta_g * n_agents * gradient_term[agent_i][param_i][0] \
-                                    - beta_gm * n_agents * z_g[agent_i][param_i][0]
+                                    - beta_g * gradient_term[agent_i][param_i][0] \
+                                    - beta_gm * z_g[agent_i][param_i][0]
 
 
 
