@@ -8,7 +8,7 @@ import equinox as eqx
 
 
 
-def get_2DO_datasets(train_dataset, test_dataset, BATCH_SIZE= 64):
+def get_2DO_datasets(train_dataset, test_dataset, seed= 1, BATCH_SIZE= 64):
     """
     Parameters:
     ----------
@@ -69,8 +69,8 @@ def get_2DO_datasets(train_dataset, test_dataset, BATCH_SIZE= 64):
     balanced_test_targets = np.array(balanced_test_targets)
     balanced_test_data = np.array(balanced_test_data)
 
-    X1_train, X2_train, y1_train, y2_train = sklearn.model_selection.train_test_split(balanced_train_data,balanced_train_targets, train_size = 0.5, stratify=balanced_train_targets)
-    X1_test, X2_test, y1_test, y2_test = sklearn.model_selection.train_test_split(balanced_test_data,balanced_test_targets, test_size = 0.5, stratify=balanced_test_targets)
+    X1_train, X2_train, y1_train, y2_train = sklearn.model_selection.train_test_split(balanced_train_data,balanced_train_targets, train_size = 0.5, stratify=balanced_train_targets, random_state= seed)
+    X1_test, X2_test, y1_test, y2_test = sklearn.model_selection.train_test_split(balanced_test_data,balanced_test_targets, test_size = 0.5, stratify=balanced_test_targets, random_state= seed)
 
 
     class CustomDataset(torch.utils.data.Dataset):
