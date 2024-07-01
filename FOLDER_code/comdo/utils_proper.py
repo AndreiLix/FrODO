@@ -427,7 +427,7 @@ def step_withMemory(x, consensus_memory, gradient_memory, fs_private, scaled_mem
         gradient_memory[agent_i][param_i][:-1] = gradient_memory[agent_i][param_i][1:]
         gradient_memory[agent_i][param_i][-1] = gradient_term[agent_i][param_i][0]
 
-  # consensnus step (as in scheme II)   TODO: check if wrong
+  # consensnus step (as in scheme I)
   x_copy = np.copy(x)
   for agent_i in range(n_agents):
      x[agent_i] = np.copy(np.mean(x_copy, axis= 0))
@@ -541,6 +541,322 @@ def step_projected(x, consensus_memory, gradient_memory, fs_private, beta_c = 1,
 
 
   return x, consensus_memory, gradient_memory
+
+
+def step_customGraph_withMemory(A, x, consensus_memory, gradient_memory, fs_private, scaled_memory= False, memory_profile= "exponential", b= 3, _lambda= 0.15, len_memory= 10, beta_c = 1, beta_cm= 0.04, beta_g= 0.6, beta_gm= 0.36):
+  """
+  Like step_withMemory, but allows for custom connection graphs.
+
+  Changes the states (x), consensus_memory and gradient_memory of our agents based on a step in the optimization process.
+
+  Parameters
+  ----------
+  x: np array, shape (n_agents, n_params, 1).
+    Agent states.
+
+  consensus_memory: np array, shape (n_agents, n_params, len_memory)
+    Memory of consensus error for each parameter of length len_memory.
+      Memory encoded such that:
+        consensus_memory[agent_i][param_i][0] = consensus error len_memory iterations ago.
+        consensus_memory[agent_i][param_i][-1] = consensus error in the previous iteration.
+
+  gradient_memory: np array, shape (n_agents, n_params, len_gradientMemory)
+      Memory of past private subgradient values for each parameter of length len_gradientMemory.
+        Memory encoded such that:
+          gradient_memory[agent_i][param_i][0] = gradient len_memory iterations ago.
+          gradient_memory[agent_i][param_i][-1] = gradient in the previous iteration.
+
+  b, _lambda: 
+    Scalar to parametrize the exponential and fractional memory profiles
+          
+    
+  scaled_memory: bool
+    If the memory feedback should be scaled by memory memory length.
+  
+    
+  Returns
+  --------
+  x, consensus_memory, gradient_memory
+      The updated angents's states (x), updated consensus_memory and gradient_memory
+                                                                                                                                                                  
+  """
+
+
+  n_agents = len(fs_private)
+  n_params = len(x[0])
+
+  #---------------------------- first stage --------------------------------------
+
+  # computing the terms used for the updates in this iteration
+
+  # consesus_term = np.zeros([n_agents, n_params,1])
+  gradient_term = np.zeros([n_agents, n_params,1])
+
+
+  if memory_profile == "constant":
+    memory_weights = np.array([constant(x) for x in range(1, len_memory + 1)])
+
+
+  if memory_profile == "linear":
+    memory_weights = np.array([linear(x) for x in range(1, len_memory + 1)])
+    # scaling values between 0 and 1
+    memory_weights = memory_weights / max(memory_weights)
+
+  if memory_profile == "exponential":
+    memory_weights = np.array([exponential(x, b) for x in range(1, len_memory + 1)])
+    # scaling values between 0 and 1
+    memory_weights = memory_weights / max(memory_weights)
+
+
+  if memory_profile == "fractional_v1":
+    memory_weights = np.array([fractional_v1(x, _lambda) for x in range(1, len_memory + 1)])
+    # scaling values between 0 and 1
+    memory_weights = memory_weights / max(memory_weights)
+    #reversing array
+    memory_weights = np.flip(memory_weights)
+
+  if memory_profile == "fractional_v2":
+    memory_weights = np.array([fractional_v2(x, len_memory, _lambda) for x in range(1, len_memory+1)])
+    # scaling values between 0 and 1
+    memory_weights = memory_weights / max(memory_weights)
+    #reversing array (to adjust for the cleaner memory weight equation)
+    memory_weights = np.flip(memory_weights)
+
+  z_g = np.zeros([n_agents, n_params, 1])
+
+  for agent_i in range(n_agents):
+
+    gradient_term[agent_i] = get_gradientVector_Autograd(fs_private[agent_i], x[agent_i])
+    for param_i in range(n_params):
+
+      # consesus_term[agent_i][param_i][0] = (1/(n_agents-1)) * sum( [ (x[agent_j][param_i][0] - x[agent_i][param_i][0]) for agent_j in range(n_agents) if agent_j!= agent_i ] )
+      # print(f"consensus term agent {agent_i}, param {param_i}: {consesus_term[agent_i][param_i][0]}")
+
+      if scaled_memory:
+        z_g[agent_i][param_i][0] = sum([ memory_weights[memory_i] * gradient_memory[agent_i][param_i][memory_i] for memory_i in range(len_memory)])
+
+      if scaled_memory == False:
+        z_g[agent_i][param_i][0] = sum([ memory_weights[memory_i] * gradient_memory[agent_i][param_i][memory_i] for memory_i in range(len_memory)])
+
+
+
+  # ================================================================
+
+
+  # #---------------------------- second stage --------------------------------------
+
+  # # updating x, consensus_memory and gradient_memory
+
+
+
+  # # NOTE: all terms in update must be shape (n_agents, n_params, 1)
+
+
+  # for agent_i in range(n_agents):
+  #   for param_i in range(n_params):
+
+  #       # print(f"consensus term agent {agent_i}, param {param_i}: {consesus_term[agent_i][param_i][0]}")
+  #       # print(f"gradient term agent {agent_i}, param {param_i}: {gradient_term[agent_i][param_i][0]}")
+
+  #       x[agent_i][param_i][0] = x[agent_i][param_i][0] \
+  #                                   + beta_c * consesus_term[agent_i][param_i][0] \
+  #                                   - beta_g * gradient_term[agent_i][param_i][0] \
+  #                                   - beta_gm * z_g[agent_i][param_i][0]
+        
+  #       # updating consensus mamory and gradient based on this iteration's sonsensus term and gradient descent term
+
+  #       gradient_memory[agent_i][param_i][:-1] = gradient_memory[agent_i][param_i][1:]
+  #       gradient_memory[agent_i][param_i][-1] = gradient_term[agent_i][param_i][0]
+
+
+  """
+  scheme I:
+
+  for agent:
+    do descent step
+  for agent:
+    do consensus step
+
+  scheme II:
+
+  for agent:
+    do descent step
+    do consensus step
+
+  """
+
+  # ________updates scheme I (preferred)________
+
+
+  # descent step
+  for agent_i in range(n_agents):
+    for param_i in range(n_params):
+
+        # x[agent_i][param_i][0] = x[agent_i][param_i][0] \
+        #                             - beta_g * gradient_term[agent_i][param_i][0] \
+        #                             - beta_gm * z_g[agent_i][param_i][0]
+
+        # This update generates the exact same results as initial multitask -> good
+          # TODO: find some justification / reasoning for it if supervisors advize
+        x[agent_i][param_i][0] = x[agent_i][param_i][0] \
+                                    - beta_g * gradient_term[agent_i][param_i][0] \
+                                    - beta_gm * z_g[agent_i][param_i][0]
+
+
+
+        gradient_memory[agent_i][param_i][:-1] = gradient_memory[agent_i][param_i][1:]
+        gradient_memory[agent_i][param_i][-1] = gradient_term[agent_i][param_i][0]
+
+  # consensnus step (as in scheme I)
+
+  x_copy = np.copy(x)
+  for agent_i in range(n_agents):
+  
+    # # consensus when graph fully connected, with equal influence 
+    #  x[agent_i] = np.copy(np.mean(x_copy, axis= 0))
+
+    # weighted_sum = np.zeros_like(x[agent_i])
+    
+    # Calculate the weighted sum of all agents' parameters
+    for agent_j in range(n_agents):
+     weighted_sum = 0
+     for param_i in range(n_params):
+      weighted_sum += A[agent_i, agent_j] * x_copy[agent_j][param_i][0]  
+      # Update the parameters of agent_i based on the computed weighted sum
+      x[agent_i][param_i][0] = weighted_sum
+
+  return x, consensus_memory, gradient_memory
+
+
+def optimize_customGraph_IllHess( A, stopping_condition : float = 0.002, max_iterations : int = 1000, initial_conditions= [((0., 1.), (0., 1.), (0., 1.), (0., 1.))], scaled_memory= False, memory_profiles : list = ["exponential"], bs : list= [2], _lambdas: list = [2.5], lens_memory: list= [10], betas_c: list = [0.2], betas_cm: list = [0.04], betas_g: list = [0.6], betas_gm: list = [0.36], betas_pg: list = [0.36]):
+
+  """
+  IllHEss optimized that can take a **custom connection weight** matrix as input.
+  
+  Parameters:
+  -----------
+  A: np matrix shape (n_agents, n_agents)
+    Values in [0, 1]. 
+    Value at row i, column j = the weight agent i attributes to agent j in the consensus step.
+
+
+  """
+
+  # --------------------- private objectives ------------------------
+
+  def f1_ill(x1, x2):
+      return 0.5 * ((2 - x1) ** 2) + 0.005 * (x2 ** 2)
+  def f2_ill(x1, x2):
+      return 0.5 * ((2 + x1) ** 2) + 0.005 * (x2 ** 2)
+  def f3_ill(x1, x2):
+      return 0.5 * (x1 ** 2) + 0.005 * ((2 - x2) ** 2)
+  def f4_ill(x1, x2):
+      return 0.5 * (x1 ** 2) + 0.005 * ((2 + x2) ** 2)
+  
+  # ==================================================================
+
+  x_opt = np.array(
+                [ [0] ,
+                  [0] ]
+                )
+
+  # performance_dict_initialCondition = {}
+  performance_dict = {}
+
+  x_history = []
+
+  for initial_condition in initial_conditions:
+    last_iteration = 0
+
+    for memory_profile in memory_profiles:
+
+      if memory_profile in ("fractional_v1", "fractional_v2"):
+        for _lambda in _lambdas:
+          for len_memory in lens_memory:
+            for beta_c in betas_c:
+              for beta_cm in betas_cm:
+                for beta_g in betas_g:
+
+                  # TODO: remove these conditions when Monte Carlo assessment done
+
+                  
+                  # if initial_condition == (1., 0.) and beta_g == 1:
+                  #    continue
+                  
+                  # if initial_condition == (0., 1.) and beta_g == 0.1:
+                  #    continue
+                  
+                  for beta_gm in betas_gm:
+
+                    # assigning the same initial condition to all agents
+
+                    fs_private = [f1_ill, f2_ill, f3_ill, f4_ill]
+                    # x_history = []
+                    x1 = copy.deepcopy(np.array(
+                          [ [initial_condition[0][0]] ,
+                            [initial_condition[0][1]] ]
+                          ))
+                    x2 = copy.deepcopy(np.array(
+                          [ [initial_condition[1][0]] ,
+                            [initial_condition[1][1]] ]
+                          ))
+                    x3 = copy.deepcopy(np.array(
+                          [ [initial_condition[2][0]] ,
+                            [initial_condition[2][1]] ]
+                          ))
+                    x4 = copy.deepcopy(np.array(
+                          [ [initial_condition[3][0]] ,
+                            [initial_condition[3][1]] ]
+                          ))
+                    x = [x1, x2, x3, x4]
+
+
+                    x_inLast2Iterations = [copy.deepcopy(x), copy.deepcopy(x)]
+                    n_agents = len(fs_private)
+                    n_params = len(x[0])
+                    consensus_memory = np.zeros([n_agents, n_params, len_memory])
+                    gradient_memory = np.zeros([n_agents, n_params, len_memory])
+
+                    for iteration in range(max_iterations):
+                          
+                          x_history.append(copy.deepcopy(x))
+                          # print("x at iteration ", iteration, ":")
+                          # print(x)
+
+                          last_iteration = last_iteration + 1
+                          # np array of shape = (len(x_inLast2Iterations) * n_agents * n_params, )
+                                #   contains the absolute difference of each parameter of the agents in the last 2 iterations from the optimum.
+                          dif_fromOptimum = np.reshape( [ [ [abs(x_inLast2Iterations[k][i][j,0] - x_opt[j]) for j in range(len(x_inLast2Iterations[0][0]))] for i in range(len(x_inLast2Iterations[0])) ] for k in range(len(x_inLast2Iterations))], newshape= -1)
+
+                          if all(dif < stopping_condition for dif in dif_fromOptimum):
+                                
+                               # x_history.append(x)
+                                # performance_dict[(initial_condition, memory_profile , b, _lambda, len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = {"n_iterationsUntilConvergence": iteration , "last_x": x, "x_history": np.array(x_history)} 
+                                performance_dict[(str(initial_condition), memory_profile, _lambda , len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = iteration # , x_history
+
+                                break
+
+                          # if agents start with different states, we allign them before we start the optimization
+                          #   (bc of negative effects big consensus jumps would have on the long-term memory) 
+
+                          if iteration == 0:
+                            # consensnus step (as in scheme II)   TODO: check if wrong
+                            x_copy = np.copy(x)
+                            for agent_i in range(n_agents):
+                              x[agent_i] = np.copy(np.mean(x_copy, axis= 0))
+                          
+
+                          x, consensus_memory, gradient_memory = step_customGraph_withMemory(A, x, consensus_memory, gradient_memory, fs_private, scaled_memory= scaled_memory, memory_profile= memory_profile, _lambda= _lambda, len_memory= len_memory, beta_c = beta_c, beta_cm= beta_cm, beta_g= beta_g, beta_gm= beta_gm)
+                          
+                          x_inLast2Iterations[0] = copy.deepcopy(x_inLast2Iterations[1])
+                          x_inLast2Iterations[1] = copy.deepcopy(x)
+
+                          # print(x)
+
+                    performance_dict[(str(initial_condition), memory_profile, _lambda , len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = iteration   # , x_history
+
+  return performance_dict
+
 
 
 
@@ -1511,3 +1827,419 @@ def plot_streamlined(alphas, betas, n_iterations= 100, step_version= "step_seque
             # plt.show()
 
 
+
+
+
+
+
+
+def optimize_IllDefinedHessian_Explicit( stopping_condition : float = 0.002, max_iterations : int = 1000, initial_conditions= [((0., 1.), (0., 1.), (0., 1.), (0., 1.))], scaled_memory= False, memory_profiles : list = ["exponential"], bs : list= [2], _lambdas: list = [2.5], lens_memory: list= [10], betas_c: list = [0.2], betas_cm: list = [0.04], betas_g: list = [0.6], betas_gm: list = [0.36], betas_pg: list = [0.36] ):
+  """
+  Same as optimize_IllDefinedHessian(), but it only works explicit initial condition taken as input;
+
+
+  Parameters
+  ----------
+  initial_conditions = iterable, shape (n_initialConditions, n_agents, n_params) 
+
+
+  Returns
+  -------
+  dict
+
+    dictionary of format { ( (x_1_initial, x_2_initial), memory_profile, optional_memoryProfileParameter, len_memory, beta_c, beta_cm, beta_g, beta_gm ) : n_iterationsUntilConvergence : int }
+    
+  """
+
+  # --------------------- private objectives ------------------------
+
+  def f1_ill(x1, x2):
+      return 0.5 * ((2 - x1) ** 2) + 0.005 * (x2 ** 2)
+  def f2_ill(x1, x2):
+      return 0.5 * ((2 + x1) ** 2) + 0.005 * (x2 ** 2)
+  def f3_ill(x1, x2):
+      return 0.5 * (x1 ** 2) + 0.005 * ((2 - x2) ** 2)
+  def f4_ill(x1, x2):
+      return 0.5 * (x1 ** 2) + 0.005 * ((2 + x2) ** 2)
+  
+  # ==================================================================
+
+  x_opt = np.array(
+                [ [0] ,
+                  [0] ]
+                )
+
+  # performance_dict_initialCondition = {}
+  performance_dict = {}
+
+  x_history = []
+
+  for initial_condition in initial_conditions:
+
+
+    last_iteration = 0
+
+
+    for memory_profile in memory_profiles:
+
+      if memory_profile == "projected":
+        for beta_pg in betas_pg:
+          for len_memory in lens_memory:
+            for beta_c in betas_c:
+              for beta_cm in betas_cm:
+                for beta_g in betas_g:
+
+                  # TODO: remove these conditions when Monte Carlo assessment done
+
+                  
+                  # if initial_condition == (1., 0.) and beta_g == 1:
+                  #    continue
+                  
+                  # if initial_condition == (0., 1.) and beta_g == 0.1:
+                  #    continue
+                  
+                  for beta_gm in betas_gm:
+
+                    # assigning the same initial condition to all agents
+
+                    fs_private = [f1_ill, f2_ill, f3_ill, f4_ill]
+                    # x_history = []
+                    x1 = copy.deepcopy(np.array(
+                          [ [initial_condition[0][0]] ,
+                            [initial_condition[0][1]] ]
+                          ))
+                    x2 = copy.deepcopy(np.array(
+                          [ [initial_condition[1][0]] ,
+                            [initial_condition[1][1]] ]
+                          ))
+                    x3 = copy.deepcopy(np.array(
+                          [ [initial_condition[2][0]] ,
+                            [initial_condition[2][1]] ]
+                          ))
+                    x4 = copy.deepcopy(np.array(
+                          [ [initial_condition[3][0]] ,
+                            [initial_condition[3][1]] ]
+                          ))
+                    x = [x1, x2, x3, x4]
+
+                    # initializing integral terms. 
+                    # NOTE: each term must be 0
+                    # z1, z2, z3, z4 = 4 * [np.zeros_like(x1)]
+
+                    # z = [z1, z2, z3, z4]
+
+                    x_inLast2Iterations = [copy.deepcopy(x), copy.deepcopy(x)]
+                    n_agents = len(fs_private)
+                    n_params = len(x[0])
+                    consensus_memory = np.zeros([n_agents, n_params, len_memory])
+                    gradient_memory = np.zeros([n_agents, n_params, len_memory])
+
+                    for iteration in range(max_iterations):
+                          
+                          x_history.append(copy.deepcopy(x))
+
+                          last_iteration = last_iteration + 1
+                          # np array of shape = (len(x_inLast2Iterations) * n_agents * n_params, )
+                                #   contains the absolute difference of each parameter of the agents in the last 2 iterations from the optimum.
+                          dif_fromOptimum = np.reshape( [ [ [abs(x_inLast2Iterations[k][i][j,0] - x_opt[j]) for j in range(len(x_inLast2Iterations[0][0]))] for i in range(len(x_inLast2Iterations[0])) ] for k in range(len(x_inLast2Iterations))], newshape= -1)
+
+                          if all(dif < stopping_condition for dif in dif_fromOptimum):
+                                
+                                # x_history.append(copy.deepcopy(x))
+                                # performance_dict[(initial_condition, memory_profile , b, _lambda, len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = {"n_iterationsUntilConvergence": iteration , "last_x": x, "x_history": np.array(x_history)} 
+                                performance_dict[(str(initial_condition), memory_profile, beta_c,  beta_g, beta_pg)] = iteration
+                                break
+
+
+                          # PROBLEM: uncommenting this line results in halving the number of iterations -> figure out why, maybe equivalent to doubling beta
+                          # print(step_v3(x, z, fs_private, alpha= 3, beta= 0.2, subgradient= "autograd"))
+
+                        #  x_history.append(copy.deepcopy(x))
+
+                          x, consensus_memory, gradient_memory = step_projected(x, consensus_memory, gradient_memory, fs_private, beta_c = beta_c, beta_g= beta_g, beta_pg= beta_pg)
+                          
+                          x_inLast2Iterations[0] = copy.deepcopy(x_inLast2Iterations[1])
+                          x_inLast2Iterations[1] = copy.deepcopy(x)
+
+                          # print(x)
+
+
+                    # performance_dict[(initial_condition, memory_profile, b, _lambda , len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = {"n_iterationsUntilConvergence": iteration , "last_x": x, "x_history": np.array(x_history)} 
+                    performance_dict[(str(initial_condition), memory_profile, beta_c,  beta_g, beta_pg)] = iteration
+                    # print("performance_dict_initialCondition = ",  performance_dict_initialCondition)
+                    
+                    # performance_dict[( memory_profile , len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = performance_dict_initialCondition
+
+
+
+    for memory_profile in memory_profiles:
+
+      if memory_profile == "exponential":
+        for b in bs:
+          for len_memory in lens_memory:
+            for beta_c in betas_c:
+              for beta_cm in betas_cm:
+                for beta_g in betas_g:
+
+                  # TODO: remove these conditions when Monte Carlo assessment done
+
+                  
+                  # if initial_condition == (1., 0.) and beta_g == 1:
+                  #    continue
+                  
+                  # if initial_condition == (0., 1.) and beta_g == 0.1:
+                  #    continue
+                  
+                  for beta_gm in betas_gm:
+
+                    # assigning the same initial condition to all agents
+
+                    fs_private = [f1_ill, f2_ill, f3_ill, f4_ill]
+                    # x_history = []
+                    x1 = copy.deepcopy(np.array(
+                          [ [initial_condition[0][0]] ,
+                            [initial_condition[0][1]] ]
+                          ))
+                    x2 = copy.deepcopy(np.array(
+                          [ [initial_condition[1][0]] ,
+                            [initial_condition[1][1]] ]
+                          ))
+                    x3 = copy.deepcopy(np.array(
+                          [ [initial_condition[2][0]] ,
+                            [initial_condition[2][1]] ]
+                          ))
+                    x4 = copy.deepcopy(np.array(
+                          [ [initial_condition[3][0]] ,
+                            [initial_condition[3][1]] ]
+                          ))
+                    x = [x1, x2, x3, x4]
+
+                    # initializing integral terms. 
+                    # NOTE: each term must be 0
+                    # z1, z2, z3, z4 = 4 * [np.zeros_like(x1)]
+
+                    # z = [z1, z2, z3, z4]
+
+                    x_inLast2Iterations = [copy.deepcopy(x), copy.deepcopy(x)]
+                    n_agents = len(fs_private)
+                    n_params = len(x[0])
+                    consensus_memory = np.zeros([n_agents, n_params, len_memory])
+                    gradient_memory = np.zeros([n_agents, n_params, len_memory])
+
+                    for iteration in range(max_iterations):
+
+                          last_iteration = last_iteration + 1
+                          # np array of shape = (len(x_inLast2Iterations) * n_agents * n_params, )
+                                #   contains the absolute difference of each parameter of the agents in the last 2 iterations from the optimum.
+                          dif_fromOptimum = np.reshape( [ [ [abs(x_inLast2Iterations[k][i][j,0] - x_opt[j]) for j in range(len(x_inLast2Iterations[0][0]))] for i in range(len(x_inLast2Iterations[0])) ] for k in range(len(x_inLast2Iterations))], newshape= -1)
+
+                          if all(dif < stopping_condition for dif in dif_fromOptimum):
+                                
+                               # x_history.append(x)
+                                # performance_dict[(initial_condition, memory_profile , b, _lambda, len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = {"n_iterationsUntilConvergence": iteration , "last_x": x, "x_history": np.array(x_history)} 
+                                performance_dict[(str(initial_condition), memory_profile, b, len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = iteration
+
+
+                                break
+
+
+                          # PROBLEM: uncommenting this line results in halving the number of iterations -> figure out why, maybe equivalent to doubling beta
+                          # print(step_v3(x, z, fs_private, alpha= 3, beta= 0.2, subgradient= "autograd"))
+
+                         # x_history.append(copy.deepcopy(x))
+
+                          
+
+                          x, consensus_memory, gradient_memory = step_withMemory(x, consensus_memory, gradient_memory, fs_private, scaled_memory= scaled_memory, memory_profile= memory_profile, b= b, len_memory= len_memory, beta_c = beta_c, beta_cm= beta_cm, beta_g= beta_g, beta_gm= beta_gm)
+                          
+                          x_inLast2Iterations[0] = copy.deepcopy(x_inLast2Iterations[1])
+                          x_inLast2Iterations[1] = copy.deepcopy(x)
+
+                          # print(x)
+
+
+                    # performance_dict[(initial_condition, memory_profile, b, _lambda , len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = {"n_iterationsUntilConvergence": iteration , "last_x": x, "x_history": np.array(x_history)} 
+                    performance_dict[(str(initial_condition), memory_profile, b, len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = iteration
+                    # print("performance_dict_initialCondition = ",  performance_dict_initialCondition)
+                    
+                    # performance_dict[( memory_profile , len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = performance_dict_initialCondition
+
+
+    for memory_profile in memory_profiles:
+
+      if memory_profile in ("fractional_v1", "fractional_v2"):
+        for _lambda in _lambdas:
+          for len_memory in lens_memory:
+            for beta_c in betas_c:
+              for beta_cm in betas_cm:
+                for beta_g in betas_g:
+
+                  # TODO: remove these conditions when Monte Carlo assessment done
+
+                  
+                  # if initial_condition == (1., 0.) and beta_g == 1:
+                  #    continue
+                  
+                  # if initial_condition == (0., 1.) and beta_g == 0.1:
+                  #    continue
+                  
+                  for beta_gm in betas_gm:
+
+                    # assigning the same initial condition to all agents
+
+                    fs_private = [f1_ill, f2_ill, f3_ill, f4_ill]
+                    # x_history = []
+                    x1 = copy.deepcopy(np.array(
+                          [ [initial_condition[0][0]] ,
+                            [initial_condition[0][1]] ]
+                          ))
+                    x2 = copy.deepcopy(np.array(
+                          [ [initial_condition[1][0]] ,
+                            [initial_condition[1][1]] ]
+                          ))
+                    x3 = copy.deepcopy(np.array(
+                          [ [initial_condition[2][0]] ,
+                            [initial_condition[2][1]] ]
+                          ))
+                    x4 = copy.deepcopy(np.array(
+                          [ [initial_condition[3][0]] ,
+                            [initial_condition[3][1]] ]
+                          ))
+                    x = [x1, x2, x3, x4]
+
+
+                    x_inLast2Iterations = [copy.deepcopy(x), copy.deepcopy(x)]
+                    n_agents = len(fs_private)
+                    n_params = len(x[0])
+                    consensus_memory = np.zeros([n_agents, n_params, len_memory])
+                    gradient_memory = np.zeros([n_agents, n_params, len_memory])
+
+                    for iteration in range(max_iterations):
+                          
+                          x_history.append(copy.deepcopy(x))
+                          # print("x at iteration ", iteration, ":")
+                          # print(x)
+
+                          last_iteration = last_iteration + 1
+                          # np array of shape = (len(x_inLast2Iterations) * n_agents * n_params, )
+                                #   contains the absolute difference of each parameter of the agents in the last 2 iterations from the optimum.
+                          dif_fromOptimum = np.reshape( [ [ [abs(x_inLast2Iterations[k][i][j,0] - x_opt[j]) for j in range(len(x_inLast2Iterations[0][0]))] for i in range(len(x_inLast2Iterations[0])) ] for k in range(len(x_inLast2Iterations))], newshape= -1)
+
+                          if all(dif < stopping_condition for dif in dif_fromOptimum):
+                                
+                               # x_history.append(x)
+                                # performance_dict[(initial_condition, memory_profile , b, _lambda, len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = {"n_iterationsUntilConvergence": iteration , "last_x": x, "x_history": np.array(x_history)} 
+                                performance_dict[(str(initial_condition), memory_profile, _lambda , len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = iteration # , x_history
+
+                                break
+
+                          # if agents start with different states, we allign them before we start the optimization
+                          #   (bc of negative effects big consensus jumps would have on the long-term memory) 
+
+                          if iteration == 0:
+                            # consensnus step (as in scheme II)   TODO: check if wrong
+                            x_copy = np.copy(x)
+                            for agent_i in range(n_agents):
+                              x[agent_i] = np.copy(np.mean(x_copy, axis= 0))
+                          
+
+                          x, consensus_memory, gradient_memory = step_withMemory(x, consensus_memory, gradient_memory, fs_private, scaled_memory= scaled_memory, memory_profile= memory_profile, _lambda= _lambda, len_memory= len_memory, beta_c = beta_c, beta_cm= beta_cm, beta_g= beta_g, beta_gm= beta_gm)
+                          
+                          x_inLast2Iterations[0] = copy.deepcopy(x_inLast2Iterations[1])
+                          x_inLast2Iterations[1] = copy.deepcopy(x)
+
+                          # print(x)
+
+                    performance_dict[(str(initial_condition), memory_profile, _lambda , len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = iteration   # , x_history
+                    
+
+    for memory_profile in memory_profiles:
+
+      if memory_profile in ("constant", "linear"):   # TODO: having 3 blocks to address this problem seems redundant, figure out a way to do it cleaner
+        for len_memory in lens_memory:
+          for beta_c in betas_c:
+            for beta_cm in betas_cm:
+              for beta_g in betas_g:
+
+                # TODO: remove these conditions when Monte Carlo assessment done
+
+                
+                # if initial_condition == (1., 0.) and beta_g == 1:
+                #     continue
+                
+                # if initial_condition == (0., 1.) and beta_g == 0.1:
+                #     continue
+                
+                for beta_gm in betas_gm:
+
+                  # assigning the same initial condition to all agents
+
+                  fs_private = [f1_ill, f2_ill, f3_ill, f4_ill]
+                  # x_history = []
+                  x1 = copy.deepcopy(np.array(
+                        [ [initial_condition[0][0]] ,
+                          [initial_condition[0][1]] ]
+                        ))
+                  x2 = copy.deepcopy(np.array(
+                        [ [initial_condition[1][0]] ,
+                          [initial_condition[1][1]] ]
+                        ))
+                  x3 = copy.deepcopy(np.array(
+                        [ [initial_condition[2][0]] ,
+                          [initial_condition[2][1]] ]
+                        ))
+                  x4 = copy.deepcopy(np.array(
+                        [ [initial_condition[3][0]] ,
+                          [initial_condition[3][1]] ]
+                        ))
+                  x = [x1, x2, x3, x4]
+
+
+                  x_inLast2Iterations = [copy.deepcopy(x), copy.deepcopy(x)]
+                  n_agents = len(fs_private)
+                  n_params = len(x[0])
+                  consensus_memory = np.zeros([n_agents, n_params, len_memory])
+                  gradient_memory = np.zeros([n_agents, n_params, len_memory])
+
+                  for iteration in range(max_iterations):
+                        
+                        x_history.append(copy.deepcopy(x))
+                        # print("x at iteration ", iteration, ":")
+                        # print(x)
+
+
+                        last_iteration = last_iteration + 1
+                        # np array of shape = (len(x_inLast2Iterations) * n_agents * n_params, )
+                              #   contains the absolute difference of each parameter of the agents in the last 2 iterations from the optimum.
+                        dif_fromOptimum = np.reshape( [ [ [abs(x_inLast2Iterations[k][i][j,0] - x_opt[j]) for j in range(len(x_inLast2Iterations[0][0]))] for i in range(len(x_inLast2Iterations[0])) ] for k in range(len(x_inLast2Iterations))], newshape= -1)
+
+                        if all(dif < stopping_condition for dif in dif_fromOptimum):
+                              
+                              # x_history.append(x)
+                              # performance_dict[(initial_condition, memory_profile , b, _lambda, len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = {"n_iterationsUntilConvergence": iteration , "last_x": x, "x_history": np.array(x_history)} 
+                              performance_dict[(str(initial_condition), memory_profile, len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = iteration  #, x_history
+
+                              break
+
+
+                        # if agents start with different states, we allign them before we start the optimization
+                        #   (bc of negative effects big consensus jumps would have on the long-term memory) 
+
+                        if iteration == 0:
+                          # consensnus step (as in scheme II)   TODO: check if wrong
+                          x_copy = np.copy(x)
+                          for agent_i in range(n_agents):
+                            x[agent_i] = np.copy(np.mean(x_copy, axis= 0))
+
+
+                        x, consensus_memory, gradient_memory = step_withMemory(copy.deepcopy(x), consensus_memory, gradient_memory, fs_private, scaled_memory= scaled_memory, memory_profile= memory_profile, len_memory= len_memory, beta_c = beta_c, beta_cm= beta_cm, beta_g= beta_g, beta_gm= beta_gm)
+                        
+                        x_inLast2Iterations[0] = copy.deepcopy(x_inLast2Iterations[1])
+                        x_inLast2Iterations[1] = copy.deepcopy(x)
+
+                        # print(x)
+
+                  performance_dict[(str(initial_condition), memory_profile, len_memory, beta_c, beta_cm,  beta_g, beta_gm)] = iteration  #, x_history
+
+
+  return performance_dict
