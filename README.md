@@ -5,7 +5,7 @@ Buiding an ML optimizer with competitve performance by integrating a computation
 
 The implementation of the algorithm for the illHess and Rosenbrock settings can be found in `FOLDER_code/comdo/utils_proper.py`. For ANNs, the implementation of FrODO and auxiliary function for reproducible results are in `FOLDER_code/comdo/utils_ANNs.py` and a training script in `FOLDER_code/test_ANNs.ipynb`.
 
-The code used for tuning the hyperparameters of FrODO can be found in `FOLDER_code/tuning_Lambdas.ipynb`.
+The code used for tuning the hyperparameters of FrODO can be found in `FOLDER_code/tuning_Lambdas.ipynb`. The results of the illHess and Rosen experiments can be reproduced with the initial conditions from `initial_conditions_illHess` and `initial_conditions_Rosen`.
 
 Main outcomes of the project:
 
