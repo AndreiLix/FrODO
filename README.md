@@ -3,6 +3,8 @@
 
 Buiding an ML optimizer with competitve performance by integrating a computational neuroscience model into stochastic gradient descent.
 
+Implementation of the algorithm is found in `FOLDER_code/comdo/utils_proper.py`.
+
 Main outcomes of the project:
 
 ### Achieved stability across objectives with ill-defined Hessian matrices
