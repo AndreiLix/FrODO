@@ -1,5 +1,7 @@
 # FrODO: Fractional Order Distributed Optimization
-(see in paper form: https://arxiv.org/abs/2412.02546)
+(talk: https://youtu.be/f_yNoEghRhg?si=UxbdxmTKy5GAVKuo)
+(paper: https://arxiv.org/abs/2412.02546)
+
 
 Buiding an ML optimizer with competitve performance by integrating a computational neuroscience model into stochastic gradient descent.
 
